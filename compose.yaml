@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: fjstudio_a1
+      POSTGRES_USER: fjstudio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run npm run setup:local first}
+    ports:
+      - "127.0.0.1:${A1_DB_PORT:-55432}:5432"
+    volumes:
+      - a1_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "fjstudio", "-d", "fjstudio_a1"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  a1_data:

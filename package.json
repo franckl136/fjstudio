@@ -1,0 +1,28 @@
+{
+  "name": "folk-and-joy-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "setup:local": "node scripts/setup-local.ts",
+    "access:local": "node --env-file=.env.local scripts/access-local.ts",
+    "db:up": "node scripts/db-local.ts up",
+    "db:stop": "node scripts/db-local.ts stop",
+    "migrate": "node --env-file=.env.local src/migrate.ts",
+    "start": "node --env-file=.env.local src/main.ts",
+    "runner": "node --env-file=.env.local src/runner-main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --env-file-if-exists=.env.local --test --test-concurrency=1 test/*.test.ts",
+    "backup": "node scripts/backup.ts",
+    "restore": "node scripts/restore.ts"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.6",
+    "typescript": "^5.9.3"
+  }
+}
