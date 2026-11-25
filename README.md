@@ -1,5 +1,21 @@
 # Folk & Joy Studio
 
+## Candidate locale 0.3.0-rc.1
+
+Le Studio pilote plusieurs projets et leurs permissions sur un PC Windows. Le Command Center suit les missions. Project Intelligence gère les sources versionnées et leur validation. Le Control Room distribue les revues documentaires à des agents locaux. L’Agent Office affiche leurs baux réels. Quality Lab et App Lab qualifient et prévisualisent des sources Git dans des profils bornés.
+
+La candidate du poste écoute sur **http://127.0.0.1:3040/**. Le Studio historique dispose de sa propre installation sur 3030. La branche de construction du produit est `feat/studio-product-foundation`.
+
+- [Installer, démarrer et diagnostiquer](docs/product/exploitation.md)
+- [Activer un compte avec mot de passe et TOTP](docs/product/acces.md)
+- [Command Center et Agent Office](docs/product-workspace.md) · [Project Intelligence](docs/product/intelligence.md) · [Control Room](docs/control-room.md)
+- [Quality Lab et App Lab](docs/product-lab.md) · [Campagnes de tests du Studio](docs/product-campaign.md) · [Revue Git](docs/product-review.md)
+- [Sauvegarde et restauration](docs/product-recovery.md) · [Architecture](docs/product/architecture.md) · [Audit de départ](docs/product/audit.md)
+- [Échange manuel et arbitrage des propositions](docs/product-handoff.md) · [Rapport de livraison et critères d’acceptation](docs/product/livraison.md)
+- [Copier une sauvegarde chiffrée sur un second disque](docs/product-vault.md)
+
+## Documents historiques et parcours A1
+
 Folk & Joy Studio est un projet de plateforme privée de pilotage logiciel. Il vise à coordonner des missions humaines, déterministes ou assistées par IA, à conserver leurs preuves et à garder la maîtrise des permissions, des dépenses et des opérations sensibles. Folk & Joy est le premier projet envisagé. Son application est distincte du Studio.
 
 ## Dossier de conception

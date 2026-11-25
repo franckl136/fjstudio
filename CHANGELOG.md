@@ -1,5 +1,15 @@
 # Historique du Studio
 
+## 0.3.0-rc.1 · 26 novembre 2026 · candidate de recette locale
+
+- Accueil multi-projets, révision de profil, comptes administrateur, opérateur et lecteur avec mot de passe et TOTP.
+- Graphe documentaire à trois adaptateurs spécialisés, baux et quotas, approbations, checkpoints, import de sources Git et partage de révisions explicitement autorisées.
+- Bureau des agents fondé sur les tentatives observées. Revue humaine d’un commit de la branche Studio, extraits bornés et approbations datées.
+- Échange local de dossiers de mission et import des réponses comme propositions de connaissance, avec consentement sur les données et contrôle d’intégrité.
+- Comparaison et programmation de qualifications par projet, rendu HTML dans Chromium isolé, contrôle TypeScript autonome et campagne complète du Studio rattachée à un commit propre.
+- Archives privées sur Windows, vérification quotidienne et hebdomadaire, sauvegarde avant migration et restauration en quarantaine. Les versions et archives historiques du Studio conservent leur traçabilité.
+- Coffre portable pour transporter la paire dump/manifeste avec une clé d’archive indépendante, vérifier son intégrité et l’extraire dans un nouveau dossier.
+
 ## 0.2.0-rc.1 · 25 novembre 2026 · candidate interne
 
 Le Studio ajoute une campagne hors connexion reproductible pour Courses. Les scénarios relient les fautes injectées aux opérations, aux reçus SQL et à l’état visible après fermeture complète. Les preuves sont attachées au SHA mobile et vérifiées par empreinte. L’inventaire matériel et le verdict sur téléphone restent distincts de Chromium et PostgreSQL.
