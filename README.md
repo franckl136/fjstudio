@@ -26,3 +26,7 @@ Le [cahier des charges maître](docs/00-cahier-des-charges-maitre.md) présente 
 ## Tranche A1 locale
 
 La branche de réalisation A1 contient un parcours exécutable avec deux projets synthétiques, un plan déterministe et un verdict indépendant. La documentation de conception ci-dessus conserve son contexte historique. Voir [installation, recette et limites de la tranche A1](docs/a1-locale.md).
+
+## Qualification G5.2 de Courses
+
+La candidate Studio **0.2.0-rc.1** fournit un banc PostgreSQL, un parcours Chromium à froid et un catalogue de preuves vérifiables. Après `npm ci`, lancer `npm run quality:g52` depuis ce dossier. [Rapport de recette](docs/g5.2-recette.md) · [Guide de reproduction](docs/g5.2-quality-lab.md)

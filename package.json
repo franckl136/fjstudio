@@ -1,6 +1,6 @@
 {
   "name": "folk-and-joy-studio",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
@@ -12,6 +12,7 @@
     "migrate": "node --env-file=.env.local src/migrate.ts",
     "start": "node --env-file=.env.local src/main.ts",
     "runner": "node --env-file=.env.local src/runner-main.ts",
+    "quality:g52": "node scripts/g52-quality.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --env-file-if-exists=.env.local --test --test-concurrency=1 test/*.test.ts",
     "backup": "node scripts/backup.ts",

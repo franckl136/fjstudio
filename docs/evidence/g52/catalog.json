@@ -1,0 +1,1250 @@
+{
+  "schema": "fjstudio-qualification-v1",
+  "profiles": [
+    {
+      "id": "sql",
+      "title": "Transactions PostgreSQL et deux clients",
+      "scenarios": [
+        {
+          "id": "m01",
+          "title": "Upgrade on legacy data and rollback before the new ledger commits",
+          "fault": "Upgrade on legacy data and rollback before the new ledger commits",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "M01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "l01",
+          "title": "Legacy check receipt after another member has unchecked the item",
+          "fault": "Legacy check receipt after another member has unchecked the item",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "L01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "a01",
+          "title": "No send, lost response, two replays, changed payload and separate add gesture",
+          "fault": "No send, lost response, two replays, changed payload and separate add gesture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "A01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "d01",
+          "title": "Two concurrent deliveries by separate sessions reuse one operation UUID",
+          "fault": "Two concurrent deliveries by separate sessions reuse one operation UUID",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "D01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "d02",
+          "title": "Independent fields merge, divergent quantity remains a conflict, same desired value accepted",
+          "fault": "Independent fields merge, divergent quantity remains a conflict, same desired value accepted",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "D02"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "q01",
+          "title": "Malformed ACK after commit and an older check reply after the opposite check",
+          "fault": "Malformed ACK after commit and an older check reply after the opposite check",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "Q01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "d03",
+          "title": "Deletion wins over late pending check/edit, explicit re-add and generation-bound undo",
+          "fault": "Deletion wins over late pending check/edit, explicit re-add and generation-bound undo",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "D03"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "r01",
+          "title": "PostgreSQL killed before commit, recovery and retry with same UUID",
+          "fault": "PostgreSQL killed before commit, recovery and retry with same UUID",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "R01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "s01",
+          "title": "Receipt privacy, actor mismatch and membership revocation",
+          "fault": "Receipt privacy, actor mismatch and membership revocation",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "S01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "i01",
+          "title": "Two durable client stores plus real adapter and PostgreSQL, including a failed local ACK commit",
+          "fault": "Two durable client stores plus real adapter and PostgreSQL, including a failed local ACK commit",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "I01"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "sql-run-rls-isolation",
+          "title": "Unmodified SQL test entrypoint with synthetic fixture",
+          "fault": "Unmodified SQL test entrypoint with synthetic fixture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "SQL/run_rls_isolation"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "sql-run-l0-courses-stocks",
+          "title": "Unmodified SQL test entrypoint with synthetic fixture",
+          "fault": "Unmodified SQL test entrypoint with synthetic fixture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "SQL/run_l0_courses_stocks"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "sql-run-s12-tenant-guards",
+          "title": "Unmodified SQL test entrypoint with synthetic fixture",
+          "fault": "Unmodified SQL test entrypoint with synthetic fixture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "SQL/run_s12_tenant_guards"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "sql-run-shopping-catalog",
+          "title": "Unmodified SQL test entrypoint with synthetic fixture",
+          "fault": "Unmodified SQL test entrypoint with synthetic fixture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "SQL/run_shopping_catalog"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        },
+        {
+          "id": "sql-run-courses-operations",
+          "title": "Unmodified SQL test entrypoint with synthetic fixture",
+          "fault": "Unmodified SQL test entrypoint with synthetic fixture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "PostgreSQL isolé et deux magasins sur fichiers",
+          "steps": [
+            "SQL/run_courses_operations"
+          ],
+          "expected": "Toutes les assertions SQL et client de cette étape réussissent."
+        }
+      ]
+    },
+    {
+      "id": "web-preview",
+      "title": "Chromium · preview",
+      "scenarios": [
+        {
+          "id": "session-courses",
+          "title": "session courses",
+          "fault": "session courses",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "session-courses"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "cache-pret",
+          "title": "cache pret",
+          "fault": "cache pret",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "cache-pret"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "creer-trois-articles",
+          "title": "creer trois articles",
+          "fault": "creer trois articles",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "creer-trois-articles"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "renommer-changer-quantite-cocher",
+          "title": "renommer changer quantite cocher",
+          "fault": "renommer changer quantite cocher",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "renommer-changer-quantite-cocher"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "cocher-apres-coupure",
+          "title": "cocher apres coupure",
+          "fault": "cocher apres coupure",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "cocher-apres-coupure"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "coupure-et-fermeture",
+          "title": "coupure et fermeture",
+          "fault": "coupure et fermeture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "coupure-et-fermeture"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "nouveau-processus-hors-ligne",
+          "title": "nouveau processus hors ligne",
+          "fault": "nouveau processus hors ligne",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "nouveau-processus-hors-ligne"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "crud-hors-ligne",
+          "title": "crud hors ligne",
+          "fault": "crud hors ligne",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "crud-hors-ligne"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "reconnexion",
+          "title": "reconnexion",
+          "fault": "reconnexion",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil preview",
+          "steps": [
+            "reconnexion"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        }
+      ]
+    },
+    {
+      "id": "web-authenticated",
+      "title": "Chromium · authenticated",
+      "scenarios": [
+        {
+          "id": "session-courses",
+          "title": "session courses",
+          "fault": "session courses",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "session-courses"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "cache-pret",
+          "title": "cache pret",
+          "fault": "cache pret",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "cache-pret"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "creer-trois-articles",
+          "title": "creer trois articles",
+          "fault": "creer trois articles",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "creer-trois-articles"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "renommer-changer-quantite-cocher",
+          "title": "renommer changer quantite cocher",
+          "fault": "renommer changer quantite cocher",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "renommer-changer-quantite-cocher"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "verification-service-initial",
+          "title": "verification service initial",
+          "fault": "verification service initial",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "verification-service-initial"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "cocher-apres-coupure",
+          "title": "cocher apres coupure",
+          "fault": "cocher apres coupure",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "cocher-apres-coupure"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "coupure-et-fermeture",
+          "title": "coupure et fermeture",
+          "fault": "coupure et fermeture",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "coupure-et-fermeture"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "nouveau-processus-hors-ligne",
+          "title": "nouveau processus hors ligne",
+          "fault": "nouveau processus hors ligne",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "nouveau-processus-hors-ligne"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "crud-hors-ligne",
+          "title": "crud hors ligne",
+          "fault": "crud hors ligne",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "crud-hors-ligne"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "reconnexion",
+          "title": "reconnexion",
+          "fault": "reconnexion",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "reconnexion"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "reconnexion-sans-double-application",
+          "title": "reconnexion sans double application",
+          "fault": "reconnexion sans double application",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "reconnexion-sans-double-application"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        },
+        {
+          "id": "expiration-et-reprise",
+          "title": "expiration et reprise",
+          "fault": "expiration et reprise",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium hors réseau, export Expo, profil authenticated",
+          "steps": [
+            "expiration-et-reprise"
+          ],
+          "expected": "Le contrôle du parcours réussit dans sa fenêtre de mesure."
+        }
+      ]
+    },
+    {
+      "id": "reveil",
+      "title": "Réveil automatique pendant une connexion stable",
+      "scenarios": [
+        {
+          "id": "envoi",
+          "title": "Synchroniser la coche avec la connexion disponible",
+          "fault": "Synchroniser la coche avec la connexion disponible",
+          "critical": true,
+          "minimum": 4,
+          "prerequisites": "Chromium, session synthétique et PostgreSQL 17.12, fenêtre de 15 secondes",
+          "steps": [
+            "verification-service-initial"
+          ],
+          "expected": "Les cinq opérations sont en base et le journal est vide."
+        }
+      ]
+    },
+    {
+      "id": "revue",
+      "title": "Limites du client sur fonctions committées",
+      "scenarios": [
+        {
+          "id": "page-complete",
+          "title": "Réponse partielle",
+          "fault": "Réponse partielle",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+          "steps": [
+            "shortPage"
+          ],
+          "expected": "Conserver les sept articles du serveur"
+        },
+        {
+          "id": "liste-accessible",
+          "title": "Réponse vide ambiguë",
+          "fault": "Réponse vide ambiguë",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+          "steps": [
+            "emptyRlsShape"
+          ],
+          "expected": "Conserver le cache tant que la portée de la liste reste ambiguë"
+        },
+        {
+          "id": "erreur-reseau",
+          "title": "Erreur réseau",
+          "fault": "Erreur réseau",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+          "steps": [
+            "networkFailure"
+          ],
+          "expected": "Conserver les sept articles connus"
+        },
+        {
+          "id": "expiration",
+          "title": "Réveil avant dispatch du timer",
+          "fault": "Réveil avant dispatch du timer",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+          "steps": [
+            "ordinaryExpiration"
+          ],
+          "expected": "Verrouiller dès la première lecture après expiration"
+        },
+        {
+          "id": "expiration-longue",
+          "title": "Session synthétique de trente jours",
+          "fault": "Session synthétique de trente jours",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+          "steps": [
+            "longExpiration"
+          ],
+          "expected": "Verrouiller aussi après un délai supérieur au plafond du timer"
+        }
+      ]
+    },
+    {
+      "id": "automatisation",
+      "title": "Suites mobiles",
+      "scenarios": [
+        {
+          "id": "vitest",
+          "title": "vitest",
+          "fault": "vitest",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Windows, Node et Git Bash",
+          "steps": [
+            "vitest"
+          ],
+          "expected": "Tous les tests réussissent."
+        },
+        {
+          "id": "shell",
+          "title": "shell",
+          "fault": "shell",
+          "critical": true,
+          "minimum": 3,
+          "prerequisites": "Windows, Node et Git Bash",
+          "steps": [
+            "shell"
+          ],
+          "expected": "Tous les tests réussissent."
+        }
+      ]
+    },
+    {
+      "id": "telephone",
+      "title": "Relance sur appareil physique",
+      "scenarios": [
+        {
+          "id": "mode-avion",
+          "title": "Cocher en mode avion et relancer après arrêt complet",
+          "fault": "Cocher en mode avion et relancer après arrêt complet",
+          "critical": true,
+          "minimum": 5,
+          "prerequisites": "Inventaire du poste Windows",
+          "steps": [
+            "Inventaire matériel"
+          ],
+          "expected": "La liste et la coche réapparaissent sur téléphone."
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "sql-g52",
+      "profile": "sql",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "PostgreSQL isolé et deux magasins sur fichiers",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "e48c9d8e-03b2-460c-8892-2f3f8646f0c7",
+      "results": [
+        {
+          "scenario": "m01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"legacyRowSha256\":\"b726a400b958a5623a9b53d7303186f5dd2d1061d915f9848754f6f6abc648f3\",\"afterMirrorsBefore\":true,\"interruptedLedgerVisible\":false,\"interruption\":\"client disconnected with DDL transaction open\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "M01"
+            }
+          ]
+        },
+        {
+          "scenario": "l01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"legacyRowsBeforeNewCheck\":2,\"bridgedReceipts\":1,\"purchasesAfterRecheck\":2}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "L01"
+            }
+          ]
+        },
+        {
+          "scenario": "a01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"afterThreeDeliveries\":\"2\",\"afterDistinctIntent\":\"4\",\"firstIntentReceipts\":1,\"canonicalMapping\":true}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "A01"
+            }
+          ]
+        },
+        {
+          "scenario": "d01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"waitingSessions\":2,\"sharedUUID\":{\"receipts\":1,\"startingQuantity\":\"4\",\"endingQuantity\":\"7\"},\"distinctIntents\":{\"canonicalItems\":1,\"endingQuantity\":\"5\"}}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "D01"
+            }
+          ]
+        },
+        {
+          "scenario": "d02",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"label\":\"Graines entières\",\"quantity\":\"9\",\"divergentCode\":\"P0001\",\"divergentReceipts\":0,\"sameGoalAccepted\":true}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "D02"
+            }
+          ]
+        },
+        {
+          "scenario": "q01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"originalChecked\":true,\"currentChecked\":false,\"receipts\":1,\"replayed\":true}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "Q01"
+            }
+          ]
+        },
+        {
+          "scenario": "d03",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"peerLateCode\":\"P0002\",\"newCanonical\":true,\"replayedUndoPreservedTombstone\":true,\"staleUndoCode\":\"P0001\",\"correctUndoApplied\":true}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "D03"
+            }
+          ]
+        },
+        {
+          "scenario": "r01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"committedReferenceSurvived\":true,\"partialReceipts\":0,\"partialItems\":0,\"postRetryReceipts\":1}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "R01"
+            }
+          ]
+        },
+        {
+          "scenario": "s01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"otherActorReceipts\":0,\"revokedActorVisibleReceipts\":0,\"actorMismatch\":\"42501\",\"mismatchedListHousehold\":\"P0002\",\"revokedScope\":\"P0002\",\"payloadStored\":false}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "S01"
+            }
+          ]
+        },
+        {
+          "scenario": "i01",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"offlineVisible\":{\"label\":\"Rigatoni renommés\",\"checked\":true},\"pendingAfterFailedAcknowledgment\":3,\"recovered\":[{\"kind\":\"add\",\"replayed\":true,\"sameCanonical\":true},{\"kind\":\"update\",\"replayed\":false,\"sameCanonical\":true},{\"kind\":\"check\",\"replayed\":false,\"sameCanonical\":true}],\"activeCanonicalItems\":1,\"pendingAtEnd\":0,\"distinctAdds\":2,\"quantityAtEnd\":\"4\",\"devicesConverged\":true,\"lostResponseAcrossReopen\":{\"receipts\":1,\"quantityAfterReplay\":\"2\",\"quantityAfterNewGesture\":\"4\"},\"expiredLeaseACKAccepted\":false,\"addUpdateDeleteBeforeSync\":{\"applied\":3,\"tombstoneQuantity\":\"3\"},\"localAndServerMergedQuantity\":\"2 kg\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "I01"
+            }
+          ]
+        },
+        {
+          "scenario": "sql-run-rls-isolation",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"marker\":\"ALL RLS TESTS PASSED\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "SQL/run_rls_isolation"
+            }
+          ]
+        },
+        {
+          "scenario": "sql-run-l0-courses-stocks",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"marker\":\"ALL L0 TESTS PASSED\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "SQL/run_l0_courses_stocks"
+            }
+          ]
+        },
+        {
+          "scenario": "sql-run-s12-tenant-guards",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"marker\":\"ALL S12 TESTS PASSED\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "SQL/run_s12_tenant_guards"
+            }
+          ]
+        },
+        {
+          "scenario": "sql-run-shopping-catalog",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"marker\":\"ALL CATALOG TESTS PASSED\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "SQL/run_shopping_catalog"
+            }
+          ]
+        },
+        {
+          "scenario": "sql-run-courses-operations",
+          "state": "passed",
+          "level": 4,
+          "observed": "{\"marker\":\"ALL COURSES OPERATION TESTS PASSED\"}",
+          "evidence": [
+            {
+              "file": "sql.json",
+              "step": "SQL/run_courses_operations"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-preview-g52",
+      "profile": "web-preview",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Chromium hors réseau, export Expo, profil preview",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "1c8f76f7-6972-40a5-8a7e-9ca2ac25e486",
+      "results": [
+        {
+          "scenario": "session-courses",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "session-courses"
+            }
+          ]
+        },
+        {
+          "scenario": "cache-pret",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "cache-pret"
+            }
+          ]
+        },
+        {
+          "scenario": "creer-trois-articles",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "creer-trois-articles"
+            }
+          ]
+        },
+        {
+          "scenario": "renommer-changer-quantite-cocher",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "renommer-changer-quantite-cocher"
+            }
+          ]
+        },
+        {
+          "scenario": "cocher-apres-coupure",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "cocher-apres-coupure"
+            }
+          ]
+        },
+        {
+          "scenario": "coupure-et-fermeture",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "coupure-et-fermeture"
+            }
+          ]
+        },
+        {
+          "scenario": "nouveau-processus-hors-ligne",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "nouveau-processus-hors-ligne"
+            }
+          ]
+        },
+        {
+          "scenario": "crud-hors-ligne",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "crud-hors-ligne"
+            }
+          ]
+        },
+        {
+          "scenario": "reconnexion",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-preview.json",
+              "step": "reconnexion"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-authenticated-g52",
+      "profile": "web-authenticated",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Chromium hors réseau, export Expo, profil authenticated",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "d3806aaa-69f0-4a86-8c55-53fab0f39c92",
+      "results": [
+        {
+          "scenario": "session-courses",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "session-courses"
+            }
+          ]
+        },
+        {
+          "scenario": "cache-pret",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "cache-pret"
+            }
+          ]
+        },
+        {
+          "scenario": "creer-trois-articles",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "creer-trois-articles"
+            }
+          ]
+        },
+        {
+          "scenario": "renommer-changer-quantite-cocher",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "renommer-changer-quantite-cocher"
+            }
+          ]
+        },
+        {
+          "scenario": "verification-service-initial",
+          "state": "failed",
+          "level": 4,
+          "observed": "FAIL en 15 secondes",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "verification-service-initial"
+            }
+          ]
+        },
+        {
+          "scenario": "cocher-apres-coupure",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "cocher-apres-coupure"
+            }
+          ]
+        },
+        {
+          "scenario": "coupure-et-fermeture",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "coupure-et-fermeture"
+            }
+          ]
+        },
+        {
+          "scenario": "nouveau-processus-hors-ligne",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "nouveau-processus-hors-ligne"
+            }
+          ]
+        },
+        {
+          "scenario": "crud-hors-ligne",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "crud-hors-ligne"
+            }
+          ]
+        },
+        {
+          "scenario": "reconnexion",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "reconnexion"
+            }
+          ]
+        },
+        {
+          "scenario": "reconnexion-sans-double-application",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "reconnexion-sans-double-application"
+            }
+          ]
+        },
+        {
+          "scenario": "expiration-et-reprise",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS",
+          "evidence": [
+            {
+              "file": "web-authenticated.json",
+              "step": "expiration-et-reprise"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reveil-delayed",
+      "profile": "reveil",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Chromium, session synthétique et PostgreSQL 17.12, fenêtre de 15 secondes",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "35007ec8-1714-46a6-83d2-4ebfd5027fa3",
+      "results": [
+        {
+          "scenario": "envoi",
+          "state": "failed",
+          "level": 4,
+          "observed": "FAIL · opérations en attente : 1",
+          "evidence": [
+            {
+              "file": "web-initial-wakeup-delayed.json",
+              "step": "verification-service-initial"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reveil-converged",
+      "profile": "reveil",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Chromium, session synthétique et PostgreSQL 17.12, fenêtre de 15 secondes",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "775d95d4-8e8d-49ba-8846-5c24774e9d08",
+      "results": [
+        {
+          "scenario": "envoi",
+          "state": "passed",
+          "level": 4,
+          "observed": "PASS · opérations en attente : 0",
+          "evidence": [
+            {
+              "file": "web-initial-wakeup-converged.json",
+              "step": "verification-service-initial"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "revue-g52",
+      "profile": "revue",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "18fa8358-fca5-4162-8bf5-5d9308f724f8",
+      "results": [
+        {
+          "scenario": "page-complete",
+          "state": "failed",
+          "level": 3,
+          "observed": "{\"initial\":7,\"availableOnServer\":7,\"syntheticMode\":\"cap\",\"serverCalls\":1,\"accepted\":true,\"cacheAfter\":2}",
+          "evidence": [
+            {
+              "file": "client-review.json",
+              "step": "shortPage"
+            }
+          ]
+        },
+        {
+          "scenario": "liste-accessible",
+          "state": "failed",
+          "level": 3,
+          "observed": "{\"initial\":7,\"availableOnServer\":null,\"syntheticMode\":\"empty\",\"serverCalls\":1,\"accepted\":true,\"cacheAfter\":0}",
+          "evidence": [
+            {
+              "file": "client-review.json",
+              "step": "emptyRlsShape"
+            }
+          ]
+        },
+        {
+          "scenario": "erreur-reseau",
+          "state": "passed",
+          "level": 3,
+          "observed": "{\"initial\":7,\"availableOnServer\":7,\"syntheticMode\":\"error\",\"serverCalls\":1,\"accepted\":false,\"cacheAfter\":7}",
+          "evidence": [
+            {
+              "file": "client-review.json",
+              "step": "networkFailure"
+            }
+          ]
+        },
+        {
+          "scenario": "expiration",
+          "state": "failed",
+          "level": 3,
+          "observed": "{\"tokenSeconds\":10,\"firstTimerDelayMs\":10001,\"clockPastExpiry\":true,\"usableByPredicate\":false,\"scopeVisibleBeforeTimerDispatch\":true,\"scopeVisibleAfterTimerDispatch\":false}",
+          "evidence": [
+            {
+              "file": "client-review.json",
+              "step": "ordinaryExpiration"
+            }
+          ]
+        },
+        {
+          "scenario": "expiration-longue",
+          "state": "failed",
+          "level": 3,
+          "observed": "{\"tokenSeconds\":2592000,\"firstTimerDelayMs\":2147483647,\"clockPastExpiry\":true,\"usableByPredicate\":false,\"scopeVisibleBeforeTimerDispatch\":true,\"scopeVisibleAfterTimerDispatch\":true}",
+          "evidence": [
+            {
+              "file": "client-review.json",
+              "step": "longExpiration"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "automatisation-g52",
+      "profile": "automatisation",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Windows, Node et Git Bash",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "e28e98f5-8437-4636-8c85-2c97d04484b4",
+      "results": [
+        {
+          "scenario": "vitest",
+          "state": "passed",
+          "level": 3,
+          "observed": "123/123",
+          "evidence": [
+            {
+              "file": "mobile-checks.json",
+              "step": "vitest"
+            }
+          ]
+        },
+        {
+          "scenario": "shell",
+          "state": "passed",
+          "level": 3,
+          "observed": "2/2",
+          "evidence": [
+            {
+              "file": "mobile-checks.json",
+              "step": "shell"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "telephone-g52",
+      "profile": "telephone",
+      "version": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+      "variant": "Code committé",
+      "environment": "Inventaire du poste Windows",
+      "fixture": "Données synthétiques G5.2",
+      "project": "Courses",
+      "mission": "9f7eb1dd-e19f-4152-8674-f2ba103dea28",
+      "results": [
+        {
+          "scenario": "mode-avion",
+          "state": "not_run",
+          "level": 1,
+          "observed": "Appareils USB candidats : 0. Aucun essai terrain dans cette campagne.",
+          "evidence": [
+            {
+              "file": "device.json",
+              "step": "Inventaire matériel"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "artifacts": {
+    "client-review.json": "c7b888a16b13391f1103b1810de439eab865c7fde14dad60ac61c5e4cde557a2",
+    "client-vitest.json": "c7593d4052e014416ced9ac68dfba9e027f5a5f9595e48e7e62f5a5737595262",
+    "device.json": "6742528614d3a55d92baf8dc497a0f2d168aff77e0c1dc0cb06b36f5d7694289",
+    "mobile-checks.json": "6d95d092601d27b1ef88723ee7b027ac23b670a2077b8937e35c5b78bfeb804d",
+    "sql.json": "726be19242c278881c79a83dd89f04976fd55ce723ea279ae3818efce791cb03",
+    "web-authenticated.json": "0dd9496bdcff4ff9315d84e5a232ee1d164b971db13c022fa3b8d3641aeeb72b",
+    "web-authenticated.png": "b5e5f4152341d808f4460011b5f10b155af0d28369f823d8f8f5d6cf797c181b",
+    "web-initial-wakeup-converged.json": "8541ee05ef23c8a477a5aa9a4de23b5146f79b82a2a54835255447f7d389d7b3",
+    "web-initial-wakeup-delayed.json": "09ee672480b61f3a41deb05bbba52fb49f9c8f714b325e3a425c444e376ff91f",
+    "web-preview.json": "1eb6dc2d862a76caec4f9b0dba1fe5b60e76b533b1d31f7a289216b3932a96d2",
+    "web-preview.png": "bbe2ab893e70bc38608e5528220c901283840b59f9a21040a4703f03ac69e789"
+  }
+}
