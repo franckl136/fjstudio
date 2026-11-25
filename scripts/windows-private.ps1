@@ -11,12 +11,13 @@ if ($isDirectory) {
   if (!$item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unexpected directory.' }
   if ($Operation -eq 'ProtectBackupRoot') {
     $expected = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $PSScriptRoot) 'backups'))
-    if (![string]::Equals($item.FullName,$expected,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected backup root.' }
+    if (![string]::Equals($item.FullName.TrimEnd('\'),$expected,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected backup root.' }
   } elseif ($item.Name -notmatch '^\.fjstudio-backup-[a-zA-Z0-9]+$' -or @(Get-ChildItem -Force -LiteralPath $Path).Count -gt 0) {
     throw 'Unexpected staging directory.'
   }
-  $acl = Get-Acl -LiteralPath $Path
-  if (!$acl.GetOwner([Security.Principal.SecurityIdentifier]).Equals($owner)) { throw 'Unexpected staging owner.' }
+  $existing = Get-Acl -LiteralPath $Path
+  if (!$existing.GetOwner([Security.Principal.SecurityIdentifier]).Equals($owner)) { throw 'Unexpected staging owner.' }
+  $acl = [Security.AccessControl.DirectorySecurity]::new()
   $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
 } else {
   if ([IO.Path]::GetFileName($Path) -cnotin @('.env.local','.env.human.local')) { throw 'Unexpected configuration name.' }
@@ -32,7 +33,7 @@ foreach ($account in $accounts) {
   $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($account,'FullControl',$inherit,'None','Allow'))
 }
 if ($isDirectory) {
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  [IO.Directory]::SetAccessControl($Path,$acl)
 } else {
   $temp = Join-Path ([IO.Path]::GetDirectoryName($Path)) ('.fjstudio-config-' + [Guid]::NewGuid().ToString('N'))
   # The temporary file has a private descriptor as soon as its name exists.
