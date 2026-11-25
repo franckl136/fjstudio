@@ -1,7 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { canonicalDocument } from './product-documents.ts';
 import type { Pool, PoolClient } from 'pg';
 import { assertId, assertProject, notFound, transaction } from './database.ts';
 import { DomainError, type FixtureId, type JsonObject, type Operator, type ProjectId } from './contracts.ts';
@@ -12,7 +10,7 @@ export const kinds = {
   goal: 'Objectif', hypothesis: 'Hypothèse', question: 'À vérifier',
 };
 export const origins = { observed: 'Observation', imported: 'Document importé', agent: 'Proposition d’agent', hypothesis: 'Hypothèse', human: 'Décision humaine' };
-export const scopes = { reference: 'Consultation uniquement', nominal: 'Cas nominal', incorrect: 'Cas incorrect', both: 'Les deux cas A1' };
+export const scopes = { reference: 'Consultation uniquement', control: 'Contexte des agents du Control Room', nominal: 'Cas nominal', incorrect: 'Cas incorrect', both: 'Les deux cas A1' };
 export const confidenceLevels = { low: 'Faible', medium: 'Moyenne', high: 'Élevée' };
 export const statuses = { proposed: 'À valider', validated: 'Validée', rejected: 'Rejetée', obsolete: 'Obsolète', revoked: 'Révoquée' };
 export type KnowledgeRow = {
@@ -25,8 +23,7 @@ export type KnowledgeRow = {
 };
 type Revision = Pick<KnowledgeRow,'version'|'title'|'content'|'scope'|'status'|'action'|'actor'|'at'|'confidence'|'validity'|'claim_key'|'claim_value'>;
 export type ContextEntry = { id: string; projectId: ProjectId; version: number; title: string; content: string };
-const execute = promisify(execFile);
-const repo = fileURLToPath(new URL('../',import.meta.url));
+
 
 function invalid(): never { throw new DomainError(400,'knowledge_input','Vérifiez le type, la portée, le titre et le contenu de la fiche.'); }
 function field(value: unknown, max: number, optional = false): string {
@@ -148,20 +145,17 @@ export class Knowledge {
     });
   }
 
-  async importDocument(actor: Operator, project: ProjectId) {
+  async importDocument(actor: Operator, project: ProjectId, document:unknown='project') {
     assertProject(actor,project);
-    const path = 'docs/projects/'+project+'.md';
-    let content: string;
-    let blob: string;
-    try {
-      const options = {cwd:repo,maxBuffer:16384,windowsHide:true};
-      blob = (await execute('git',['rev-parse','--verify','HEAD:'+path],options)).stdout.trim();
-      if (!/^[a-f0-9]{40,64}$/.test(blob)) throw new Error();
-      content = (await execute('git',['cat-file','blob',blob],options)).stdout.trim();
-    } catch { throw new DomainError(503,'document_unavailable','Le document synthétique est absent de la révision Git locale.'); }
-    const digest = createHash('sha256').update(content).digest('hex');
-    return this.insertProposal(actor,project,{kind:'document',origin:'imported',title:content.split('\n')[0].replace(/^#\s*/,''),content,
-      scope:'both',reference:path+' · Git '+blob+' · SHA-256 '+digest},path+' · SHA-256 du texte importé '+digest);
+    const source = await canonicalDocument(project,document);
+    const text = source.bytes.toString('utf8').trim();
+    const blob = createHash('sha1').update('blob '+source.bytes.length+'\0').update(source.bytes).digest('hex');
+    const excerpt = text.length>2400;
+    const content = excerpt ? text.slice(0,2340)+'\n[…] Extrait du document Git.' : text;
+    const reference = source.entry+' · Git '+blob+' · SHA-256 '+source.sha256+' · commit '+source.commit;
+    const legacy = createHash('sha256').update(text).digest('hex');
+    return this.insertProposal(actor,project,{kind:'document',origin:'imported',title:text.split('\n')[0].replace(/^#\s*/,'').slice(0,140),content,
+      scope:document==='project'?'both':'reference',reference},source.entry+' · Git '+blob+' · SHA-256 '+legacy);
   }
 
   async revise(actor: Operator, project: ProjectId, id: string, input: JsonObject) {

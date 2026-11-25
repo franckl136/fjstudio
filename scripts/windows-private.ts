@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export function windowsPrivate(operation: 'PublishConfig' | 'ProtectEmptyScratch', path: string, contents?: string) {
+export function windowsPrivate(operation: 'PublishConfig' | 'ProtectEmptyScratch' | 'ProtectBackupRoot', path: string, contents?: string) {
   const root = process.env.SystemRoot;
   if (!root || process.platform !== 'win32') throw new Error('Windows NTFS requis.');
   const executable = join(root,'System32','WindowsPowerShell','v1.0','powershell.exe');

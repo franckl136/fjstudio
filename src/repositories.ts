@@ -103,12 +103,25 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
     const root = await realpath(policy.directory);
     if (relative(policy.directory, root) !== '') configurationError();
     const git = gitProgram(root);
-    const gitDir = await realpath(join(root,'.git'));
-    // A checkout with external metadata or an alternate object store needs separate qualification.
-    if (relative(root,gitDir) !== '.git' || !(await lstat(gitDir)).isDirectory()) configurationError();
-    const objects = join(gitDir,'objects');
-    if (await realpath(objects) !== objects || await sourceFile(gitDir,'objects/info/alternates',true) ||
-        await sourceFile(gitDir,'objects/info/http-alternates',true) || await sourceFile(gitDir,'commondir',true)) configurationError();
+    const marker = await realpath(join(root,'.git'));
+    if (relative(root,marker) !== '.git') configurationError();
+    let gitDir = marker, common = marker;
+    const metadata = await lstat(marker);
+    if (metadata.isFile()) {
+      if (relative(resolve(builtin.directory),root) !== '' || metadata.size>1024) configurationError();
+      const match = /^gitdir: ([^\r\n]+)$/.exec((await readFile(marker,'utf8')).trim());
+      if (!match || !isAbsolute(match[1])) configurationError();
+      gitDir = await realpath(match[1]);
+      if (relative(resolve(match[1]),gitDir) !== '') configurationError();
+      const pointer = await sourceFile(gitDir,'commondir');
+      common = await realpath(resolve(gitDir,(await readFile(pointer!,'utf8')).trim()));
+      const backref = await sourceFile(gitDir,'gitdir');
+      if (relative(join(common,'worktrees'),dirname(gitDir)) !== '' ||
+          relative(marker,resolve(gitDir,(await readFile(backref!,'utf8')).trim())) !== '') configurationError();
+    } else if (!metadata.isDirectory() || await sourceFile(gitDir,'commondir',true)) configurationError();
+    const objects = join(common,'objects');
+    if (relative(objects,await realpath(objects)) !== '' || await sourceFile(common,'objects/info/alternates',true) ||
+        await sourceFile(common,'objects/info/http-alternates',true)) configurationError();
     const env: NodeJS.ProcessEnv = {
       PATH: [dirname(git), process.platform==='win32' ? join(process.env.SystemRoot ?? 'C:\\Windows','System32') : '/usr/bin'].join(delimiter),
       SystemRoot: process.env.SystemRoot, TEMP: temp, TMP: temp, HOME: temp, XDG_CONFIG_HOME: temp,
@@ -126,7 +139,7 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
       });
       return stdout;
     }
-    const config = await sourceFile(gitDir,'config');
+    const config = await sourceFile(common,'config');
     const urls = await command(['config','--no-includes','--file',config!,'--get-all','remote.origin.url']);
     if (urls.trimEnd() !== policy.remote) configurationError();
     const headFile = await sourceFile(gitDir,'HEAD');
@@ -136,10 +149,10 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
     if (branch !== null) {
       if (!branchName(branch)) configurationError();
       const ref = 'refs/heads/'+branch;
-      const loose = await sourceFile(gitDir,ref,true);
+      const loose = await sourceFile(common,ref,true);
       if (loose) commit = (await readFile(loose,'utf8')).trim();
       else {
-        const packed = await sourceFile(gitDir,'packed-refs');
+        const packed = await sourceFile(common,'packed-refs');
         commit = (await readFile(packed!,'utf8')).split(/\r?\n/).find(line=>line.slice(41)===ref)?.slice(0,40) ?? '';
       }
     }
@@ -149,7 +162,7 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
     await writeFile(join(local,'HEAD'),commit+'\n');
     const index = await sourceFile(gitDir,'index');
     await copyFile(index!,join(local,'index'));
-    const exclude = await sourceFile(gitDir,'info/exclude',true);
+    const exclude = await sourceFile(common,'info/exclude',true);
     if (exclude) {
       await mkdir(join(local,'info'),{recursive:true});
       await copyFile(exclude,join(local,'info','exclude'));
