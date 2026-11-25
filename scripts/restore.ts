@@ -7,9 +7,12 @@ import { createPool } from "../src/config.ts";
 import { Core, migrate } from "../src/core.ts";
 import { localPath, verifyArchive } from './archive.ts';
 import { digestJson } from '../src/contracts.ts';
+import { quarantineControl } from '../src/control-room-queue.ts';
+import { recordBackupCheck } from './backup-checks.ts';
+import { quarantineRestoredProduct, verifyProductEvidence } from './restore-quarantine.ts';
 import { composeDatabaseUrl, postgresTool } from "./postgres-tools.ts";
 
-async function restoreDatabase(
+export async function restoreDatabase(
   source: string,
   target: string,
   legacyDigest?: string,
@@ -19,11 +22,15 @@ async function restoreDatabase(
     throw new Error("La restauration exige un nouveau nom fjstudio_a1_restore_<nom>.");
   }
   const base = composeDatabaseUrl(baseConnectionString);
+  if (base.pathname === '/' + target) throw new Error('Choisissez une base distincte de la source.');
+  const journal = createPool(base.href);
   base.pathname = "/" + target;
-  const archive = await open(localPath(source), "r");
   const pool = createPool(base.href);
+  let archive: Awaited<ReturnType<typeof open>> | undefined;
+  let verified: Awaited<ReturnType<typeof verifyArchive>> | undefined;
 
   try {
+    archive = await open(localPath(source), "r");
     const info = await archive.stat();
     const header = Buffer.alloc(5);
     const { bytesRead } = info.isFile() ? await archive.read(header, 0, header.length, 0) : { bytesRead: 0 };
@@ -31,9 +38,11 @@ async function restoreDatabase(
       throw new Error("L’archive doit être une sauvegarde PostgreSQL A1 au format personnalisé.");
     }
 
-    const verified = await verifyArchive(source,archive,legacyDigest);
+    verified = await verifyArchive(source,archive,legacyDigest);
     await postgresTool("createdb", ["--template=template0", "--", target]);
     try {
+      // This cluster-local marker is outside the dump. An inherited historical receipt cannot unlock the new database.
+      await journal.query(`ALTER DATABASE "${target}" SET studio.restore_pending TO 'on'`);
       // Only restore trusted A1 backups. PostgreSQL restores SQL objects from the archive.
       await postgresTool(
         "pg_restore", ["--single-transaction", "--exit-on-error", "--no-owner", "--no-privileges", "--dbname", target],
@@ -51,17 +60,27 @@ async function restoreDatabase(
       if (checkpoints.rows.some(row=>digestJson(row.artifact)!==row.digest)) throw new Error('Empreinte de checkpoint restauré incohérente.');
       await new Core(pool).recoverRestoredState();
       await new AppLab(pool).revokeRestoredSessions();
+      await quarantineControl(pool);
+      const receipt = verified;
       await transaction(pool, async client => {
-        await client.query('DELETE FROM runner_contacts'); // Contacts du cluster source.
+        await verifyProductEvidence(client);
+        await quarantineRestoredProduct(client);
         await client.query(`INSERT INTO restore_receipts(target,archive_sha256,checkpoint_count,verified_table_count)
-          VALUES ($1,$2,$3,$4)`, [target,verified.sha256,checkpoints.rowCount,expected?.tables.length ?? null]);
+          VALUES ($1,$2,$3,$4)`, [target,receipt.sha256,checkpoints.rowCount,expected?.tables.length ?? null]);
+        await recordBackupCheck(client,'restore','verified',receipt);
+        await client.query(`ALTER DATABASE "${target}" RESET studio.restore_pending`);
       });
     } catch (error) {
       console.error(`La base ${target} a été créée. Elle est conservée pour diagnostic.`);
       throw error;
     }
+    await recordBackupCheck(journal,'restore','verified',verified);
+  } catch (error) {
+    await recordBackupCheck(journal,'restore','failed',verified).catch(() => {});
+    throw error;
   } finally {
-    await archive.close();
+    await archive?.close();
+    await journal.end();
     await pool.end();
   }
 }

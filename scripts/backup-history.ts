@@ -46,6 +46,10 @@ export async function restoreHistory(base: URL) {
     address.pathname = '/' + name;
     const db = createPool(address.href);
     try {
+      if ((await db.query("SELECT current_setting('studio.restore_pending',true)='on' AS pending")).rows[0].pending) {
+        incomplete.push(name);
+        continue;
+      }
       const result = await db.query<RestoreReceipt>(`SELECT target, archive_sha256 AS hash, checkpoint_count AS checkpoints,
         (to_jsonb(r)->>'verified_table_count')::integer AS tables, completed_at AS restored
         FROM public.restore_receipts r WHERE target=current_database() ORDER BY id DESC LIMIT 1`);
