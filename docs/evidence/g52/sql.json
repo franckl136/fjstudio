@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "startedAt": "2026-11-25T22:49:01.087Z",
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "source": "immutable git objects",
+  "base": "40a1f657bee0b54b533f4336920d43b26ee787d3",
+  "baseTree": "5d6838cb9f52374a83a4e68dfec8e1266ca5d45c",
+  "image": "sha256:1eff563f6c868b9b433566e9f3cf6e5c79fbd3b95bf70ec7277d376cdbfc50d7",
+  "transport": "Product TypeScript adapter -> local psql socket as authenticated, local auth.uid() stub",
+  "network": "none",
+  "publishedPorts": 0,
+  "migrations": 19,
+  "oldGrantsSha256": "bdbccb3d4ba8cce2e6e29508daa38ff143a2a09b1c5e18177848f0b2328215c6",
+  "inputs": [
+    {
+      "path": "supabase/tests/harness/00_auth_stub.sql",
+      "sha256": "5c7d1527d73fd5102b1678301acb97400b31b41675735c06e5f9a967ab5c0725",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100000_extensions_and_helpers.sql",
+      "sha256": "0be8170ba1be213668a44a4504dbe4b549ef22e85963cdb90d5f6abf3942b6e7",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100100_identity_household.sql",
+      "sha256": "22395156e0ec190061dc76c399fe293cdc1f76eb480430d16467b1af0aecef78",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100200_courses_stocks.sql",
+      "sha256": "7c1a292ce5ca792816e9ae115da8d7de06d7ef0f67a8b319d6c3d9823ae60c0c",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100300_planning.sql",
+      "sha256": "f8be5cd6aba05b80fae13fe1460dd2fd8512f84bf0eeaf21baf77c3e9f17465b",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100400_rls_policies.sql",
+      "sha256": "5334b4744341985eb1fd56002e166da010aa7346e110b7a1af0f31dd7ec76679",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100500_owner_foyer_policies.sql",
+      "sha256": "a65a06a9daf34f65c76eab747232792665db77969f1e41d16f9723b10464fa90",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100600_soft_delete_update_fix.sql",
+      "sha256": "4d2b7e1639c9689381625b54850f656ff7a1e5ba45dfe5a27c1a8c370933165e",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100700_stock_movements_rls_r3.sql",
+      "sha256": "4dcdccc3c989d656b422944126d25f64d04b505dd730540bf06069e3992c1d5a",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100800_leave_revoke_private_soft_delete_r1.sql",
+      "sha256": "87f870c13e08121687f4091557b6d9deb0659527a673e31cc7ba53a2847d3340",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123100900_purge_soft_deleted_r2.sql",
+      "sha256": "396ec86052aeebeeef6a6722af226c7b4452a01828f3ebfedf944331fa70ac03",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123101000_l0_normalize_checks_override.sql",
+      "sha256": "88d9b8428a8fe5a8aef5e0eb5a72453bc3593ade29db9ee6f53cef066fd7f4e4",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123101100_l0_notification_prefs.sql",
+      "sha256": "1379fe04b8e8053d54fe037e09aaf21882db9b2a7d66cd624f16fd53918cad5a",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123101200_l0_rpc_check_restock_history.sql",
+      "sha256": "c8aef2de4f692cb1964016274be9001fbfc67b3c1bd19d7b050648a01ddcc438",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123190000_r_l0_03_tenant_scope_guards.sql",
+      "sha256": "a05a29b0cb565f1ff4f691964723f7fdce2bf25f042b3e0643cc99dfb474cdc7",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261123190100_r_l0_03_insert_coherence_ho47.sql",
+      "sha256": "215b90e0a018a290faa3329512c5f35f203456df98a317e1eb7a916717a3bb97",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261125190000_shopping_catalog.sql",
+      "sha256": "f776757531d094370ad9b4ccc22c2a39aec9ad933a0d556f6c4f3980ae7030cb",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261125220000_fix_history_recheck.sql",
+      "sha256": "1d176de07e61b03fd29f9aab726e1f9ec99e0818ba01d30bb704b5062227183c",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261126090000_check_operation_receipts.sql",
+      "sha256": "4a8fa648d0673619a7874e9567c026e74f8ea38485a26ccc800b3cf1b5c4524f",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/migrations/20261126090100_courses_operation_ledger.sql",
+      "sha256": "1c61b12b1810247ead84f9beeb4d1495a9ea7bb9fdd6c7d67f434c4609d3570e",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/01_grants.sql",
+      "sha256": "5cbc8c030b1aa5f260fba059926b33dddf324d7a649bfb1aabc84d61efa01285",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/run_rls_isolation.sql",
+      "sha256": "4022f4bc9f0b71c916321b89bde4a0abdbedc8836dd56fa91fe1aad5c64c9963",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/run_l0_courses_stocks.sql",
+      "sha256": "cb9384f427f0067571594ff53a18dd95092a6e0c35c7414346751bb6c4a7c296",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/run_s12_tenant_guards.sql",
+      "sha256": "085f5ebba6973d4189b543d948b4f7b2ebd312cb9b1d2c4f5e0306cb781577e6",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/run_shopping_catalog.sql",
+      "sha256": "8f988d77a4dfb2f38863a3f6823e058caeac718a884d729d16b9b633df45af25",
+      "matchesCommit": true
+    },
+    {
+      "path": "supabase/tests/harness/run_courses_operations.sql",
+      "sha256": "2613c8d725647e0444c2c1afe43cf033d8d427d74f2038cc14d569c66edbbf95",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/courses-rpc.ts",
+      "sha256": "b9730780dfda5e9036f76617924cd07e1ad1e0a72e3e8fd0c7e038dd5d26a080",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/list-items-map.ts",
+      "sha256": "eb65505b81c6ad28ffd9ebdd61028ac2cf88a95f02efaa8edb48cfdd69b68835",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/rpc-errors.ts",
+      "sha256": "70080265c2ec6692a9a508313dc51cfc28adba6887440b2ce02f648eacc4e067",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/courses-local.ts",
+      "sha256": "a27b91262f5dcba598301b37280c0fa88844563fc41dec05b9c0da8b1010d191",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/courses-quantity.ts",
+      "sha256": "b51964d965be72b3362da377db7df5b09b8f4b742a5f3b55f0b5211d020f9bce",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/courses-sync.ts",
+      "sha256": "a674076e7ee7516a33e698cb66417f16be204078cd00dd4fee399df279238120",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/data/src/courses-storage.ts",
+      "sha256": "34799daf21ff077a1bfe2b489e280c10f2da8044bdc6898ca96ef0b120aac4a0",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/index.ts",
+      "sha256": "b2ebed9a5028cb1d90d47d7dfb3c8924cdb8694746f88e2cc9f3db647309a3b1",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/types.ts",
+      "sha256": "11ac3b674c90dada8fc7d94c5c7c7f7833fa4301437b7f89c3b9fe8b60e6ee4b",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/normalize.ts",
+      "sha256": "36f6f3434e1061b45baf9afa3f868a65eec91f8b8e767026d50aa6948939590a",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/parseShoppingQuantity.ts",
+      "sha256": "b5134fbf69c0a89897a79e7b186f6104ee971f1234c69d761aaaf32e5d80f78f",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/ports.ts",
+      "sha256": "2a1ece49f5e9c2248dc8deb95d751094c1a0b0a1508a331e8ebce9f3fb5bfbf6",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/categories.ts",
+      "sha256": "2728cec60d785a99e916b612e0ac9db46b8439e0919a65517af3d2b8769cece8",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/faits.ts",
+      "sha256": "15ba42d53db37f4c1720046e8a4861102ba786681d0108529663cb2af4c75ed3",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/smart-add.ts",
+      "sha256": "c99bc59847fe4e9a62efd83788bde46a7eb54b9a29dbdb7f18ccf7a5cf125a58",
+      "matchesCommit": true
+    },
+    {
+      "path": "packages/domain/src/shopping-catalog.ts",
+      "sha256": "a0eee882f44f7cf0f9a0d1df458c7045668f0576c52462474e005bd52fce8ac4",
+      "matchesCommit": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "M01",
+      "description": "Upgrade on legacy data and rollback before the new ledger commits",
+      "status": "passed",
+      "observed": {
+        "legacyRowSha256": "b726a400b958a5623a9b53d7303186f5dd2d1061d915f9848754f6f6abc648f3",
+        "afterMirrorsBefore": true,
+        "interruptedLedgerVisible": false,
+        "interruption": "client disconnected with DDL transaction open"
+      }
+    },
+    {
+      "id": "L01",
+      "description": "Legacy check receipt after another member has unchecked the item",
+      "status": "passed",
+      "observed": {
+        "legacyRowsBeforeNewCheck": 2,
+        "bridgedReceipts": 1,
+        "purchasesAfterRecheck": 2
+      }
+    },
+    {
+      "id": "A01",
+      "description": "No send, lost response, two replays, changed payload and separate add gesture",
+      "status": "passed",
+      "observed": {
+        "afterThreeDeliveries": "2",
+        "afterDistinctIntent": "4",
+        "firstIntentReceipts": 1,
+        "canonicalMapping": true
+      }
+    },
+    {
+      "id": "D01",
+      "description": "Two concurrent deliveries by separate sessions reuse one operation UUID",
+      "status": "passed",
+      "observed": {
+        "waitingSessions": 2,
+        "sharedUUID": {
+          "receipts": 1,
+          "startingQuantity": "4",
+          "endingQuantity": "7"
+        },
+        "distinctIntents": {
+          "canonicalItems": 1,
+          "endingQuantity": "5"
+        }
+      }
+    },
+    {
+      "id": "D02",
+      "description": "Independent fields merge, divergent quantity remains a conflict, same desired value accepted",
+      "status": "passed",
+      "observed": {
+        "label": "Graines entières",
+        "quantity": "9",
+        "divergentCode": "P0001",
+        "divergentReceipts": 0,
+        "sameGoalAccepted": true
+      }
+    },
+    {
+      "id": "Q01",
+      "description": "Malformed ACK after commit and an older check reply after the opposite check",
+      "status": "passed",
+      "observed": {
+        "originalChecked": true,
+        "currentChecked": false,
+        "receipts": 1,
+        "replayed": true
+      }
+    },
+    {
+      "id": "D03",
+      "description": "Deletion wins over late pending check/edit, explicit re-add and generation-bound undo",
+      "status": "passed",
+      "observed": {
+        "peerLateCode": "P0002",
+        "newCanonical": true,
+        "replayedUndoPreservedTombstone": true,
+        "staleUndoCode": "P0001",
+        "correctUndoApplied": true
+      }
+    },
+    {
+      "id": "R01",
+      "description": "PostgreSQL killed before commit, recovery and retry with same UUID",
+      "status": "passed",
+      "observed": {
+        "committedReferenceSurvived": true,
+        "partialReceipts": 0,
+        "partialItems": 0,
+        "postRetryReceipts": 1
+      }
+    },
+    {
+      "id": "S01",
+      "description": "Receipt privacy, actor mismatch and membership revocation",
+      "status": "passed",
+      "observed": {
+        "otherActorReceipts": 0,
+        "revokedActorVisibleReceipts": 0,
+        "actorMismatch": "42501",
+        "mismatchedListHousehold": "P0002",
+        "revokedScope": "P0002",
+        "payloadStored": false
+      }
+    },
+    {
+      "id": "I01",
+      "description": "Two durable client stores plus real adapter and PostgreSQL, including a failed local ACK commit",
+      "status": "passed",
+      "observed": {
+        "offlineVisible": {
+          "label": "Rigatoni renommés",
+          "checked": true
+        },
+        "pendingAfterFailedAcknowledgment": 3,
+        "recovered": [
+          {
+            "kind": "add",
+            "replayed": true,
+            "sameCanonical": true
+          },
+          {
+            "kind": "update",
+            "replayed": false,
+            "sameCanonical": true
+          },
+          {
+            "kind": "check",
+            "replayed": false,
+            "sameCanonical": true
+          }
+        ],
+        "activeCanonicalItems": 1,
+        "pendingAtEnd": 0,
+        "distinctAdds": 2,
+        "quantityAtEnd": "4",
+        "devicesConverged": true,
+        "lostResponseAcrossReopen": {
+          "receipts": 1,
+          "quantityAfterReplay": "2",
+          "quantityAfterNewGesture": "4"
+        },
+        "expiredLeaseACKAccepted": false,
+        "addUpdateDeleteBeforeSync": {
+          "applied": 3,
+          "tombstoneQuantity": "3"
+        },
+        "localAndServerMergedQuantity": "2 kg"
+      }
+    },
+    {
+      "id": "SQL/run_rls_isolation",
+      "description": "Unmodified SQL test entrypoint with synthetic fixture",
+      "status": "passed",
+      "observed": {
+        "marker": "ALL RLS TESTS PASSED"
+      }
+    },
+    {
+      "id": "SQL/run_l0_courses_stocks",
+      "description": "Unmodified SQL test entrypoint with synthetic fixture",
+      "status": "passed",
+      "observed": {
+        "marker": "ALL L0 TESTS PASSED"
+      }
+    },
+    {
+      "id": "SQL/run_s12_tenant_guards",
+      "description": "Unmodified SQL test entrypoint with synthetic fixture",
+      "status": "passed",
+      "observed": {
+        "marker": "ALL S12 TESTS PASSED"
+      }
+    },
+    {
+      "id": "SQL/run_shopping_catalog",
+      "description": "Unmodified SQL test entrypoint with synthetic fixture",
+      "status": "passed",
+      "observed": {
+        "marker": "ALL CATALOG TESTS PASSED"
+      }
+    },
+    {
+      "id": "SQL/run_courses_operations",
+      "description": "Unmodified SQL test entrypoint with synthetic fixture",
+      "status": "passed",
+      "observed": {
+        "marker": "ALL COURSES OPERATION TESTS PASSED"
+      }
+    }
+  ],
+  "database": "17.12 (Debian 17.12-1.pgdg12+1)",
+  "finishedAt": "2026-11-25T22:49:17.355Z",
+  "passed": 15,
+  "allSourcesMatchCommit": true
+}
