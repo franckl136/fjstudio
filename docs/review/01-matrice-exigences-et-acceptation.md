@@ -5,7 +5,7 @@
 | ID | Exigence | Priorité | Acceptation mesurable | Vérification et dépendance |
 |---|---|---|---|---|
 | A-01 | Intake, qualification puis plan A1 | P0 | Pour un objectif incompatible, un motif de refus et zéro attribution. Pour un plan valide, toutes les tâches obligatoires disposent de preuve ou de blocage explicite | Fixture avec plan valide et cycle, catalogue et politique |
-| A-02 | Checkpoint, reprise et horizon | P0 | 30 étapes, interruption après 15. Aucun checkpoint perdu, une génération valide par tentative et aucune admission à partir de l'échéance | D30 local puis essai de redémarrage réel |
+| A-02 | Checkpoint, reprise et horizon | P0 | 30 étapes, interruption après 15. Aucun checkpoint perdu, au plus une tentative contrôlante par étape et mutation d’une ancienne génération refusée et aucune admission à partir de l'échéance | D30 local puis essai de redémarrage réel |
 | A-03 | Effets externes | P0 | Effet confirmé côté destination avec reçu local perdu. Zéro nouvel envoi tant que l'issue reste incertaine | Double de connecteur puis intégration autorisée |
 | A-04 | Missions récurrentes | P0 | Retard et rejeu d'une même occurrence produisent au plus une mission. Limite de rattrapage affichée | Horloge contrôlée et arrêt du worker |
 | A-05 | Plan libre et adaptation | P1 | Cycle, augmentation de droits, ou budget hors enveloppe refusés. Une révision conserve preuves et compteurs | Comparatif A1/A2/A3 sur corpus identique |
