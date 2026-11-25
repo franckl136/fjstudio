@@ -4,7 +4,7 @@
 
 ## Verdict
 
-Le socle est suffisamment défini pour préparer un développement en tranches après accord du propriétaire. Les preuves actuelles n'établissent ni exploitabilité 24/7, ni isolation des runners, ni garanties de facturation ou de reprise distante. La première tranche utile est **une mission A1 qui traverse deux rôles et deux projets de test, reprend sur preuve après panne et termine avec un verdict indépendant, à 0 € d'IA**.
+Le socle est suffisamment défini pour préparer un développement en tranches après accord du propriétaire. Les preuves actuelles n'établissent ni exploitabilité 24/7, ni isolation des runners, ni garanties de facturation ou de reprise distante. La première tranche utile est **une mission A1 à deux rôles, limitée à un projet, qui reprend sur preuve après panne et termine avec un verdict indépendant à 0 € d'IA, avec un second projet de test pour vérifier le cloisonnement**.
 
 | Domaine | Solide dans la base | Ce que cette revue exige avant passage |
 |---|---|---|
