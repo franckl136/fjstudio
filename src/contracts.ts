@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 
-export type ProjectId = 'a' | 'b';
+export type ProjectId = string;
+export type HumanRole = 'admin' | 'operator' | 'viewer';
 export type Role = 'preparer' | 'verifier';
 export type FixtureId = 'nominal' | 'incorrect';
 export type JsonObject = Record<string, unknown>;
-export type Operator = { id: string; projectIds: readonly ProjectId[] };
+export type Operator = { id: string; accountRole?: HumanRole; projectIds: readonly ProjectId[] };
 export type Runner = { id: string; projectId: ProjectId; role: Role };
 export type Credential = { token: string } & (
   | ({ kind: 'operator' } & Operator)
@@ -59,7 +60,7 @@ export function isObject(value: unknown): value is JsonObject {
 }
 
 export function isProjectId(value: unknown): value is ProjectId {
-  return value === 'a' || value === 'b';
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(value);
 }
 
 export function isFixtureId(value: unknown): value is FixtureId {
