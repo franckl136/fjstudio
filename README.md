@@ -21,4 +21,8 @@ Le [cahier des charges maître](docs/00-cahier-des-charges-maitre.md) présente 
 - Des moteurs interchangeables après qualification, avec permissions, confidentialité, budgets et validations humaines contrôlés par le Studio.
 - Une intégration GitHub en lecture seule au MVP et une restauration vérifiée avant la remise en service des effets sensibles.
 
-**Statut · Conception.** Le développement n’a pas commencé. La publication de ce dossier ne vaut ni validation du cahier des charges ni autorisation de commencer la réalisation.
+**Dossier de référence · Conception.** La publication de ces documents ne vaut pas validation du cahier des charges. La tranche A1 ci-dessous relève d’une autorisation distincte.
+
+## Tranche A1 locale
+
+La branche de réalisation A1 contient un parcours exécutable avec deux projets synthétiques, un plan déterministe et un verdict indépendant. La documentation de conception ci-dessus conserve son contexte historique. Voir [installation, recette et limites de la tranche A1](docs/a1-locale.md).
