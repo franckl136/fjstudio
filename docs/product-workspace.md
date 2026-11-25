@@ -35,7 +35,7 @@ Les tests PostgreSQL de `test/product-workspace.test.ts` couvrent le périmètre
 
 La recette `scripts/product-workspace-browser.mjs` ouvre le vrai serveur HTTP sur un port libre en boucle locale et crée une base PostgreSQL temporaire dédiée. Elle enrôle et reconnecte trois utilisateurs synthétiques, attribue deux baux, vérifie les trois checkpoints et lance une qualification structurelle ainsi qu’une preview dans le conteneur Chromium. Elle contrôle l’affichage à 1366 × 900 et 390 × 844. Elle ferme son serveur et supprime sa seule base temporaire. Son compte-rendu JSON et quatre captures sont écrits dans un nouveau dossier temporaire affiché à la fin.
 
-Avec le Compose du Studio produit actif, utilisez PowerShell. Donnez à `STUDIO_QA_PLAYWRIGHT` le chemin de votre installation locale de `playwright-core` si le module n’est pas résolu par Node. Donnez à `STUDIO_QA_BROWSER` le chemin du navigateur Chromium local si vous utilisez une installation système.
+Avec le Compose du Studio produit actif, utilisez PowerShell. Le pilote playwright-core est inclus dans les dépendances de développement. Sous Windows, la recette utilise Chrome ou Edge lorsqu’il est installé. Pour un autre navigateur Chromium local, définir STUDIO_QA_BROWSER avec le chemin de son exécutable.
 
 ```powershell
 $env:COMPOSE_PROJECT_NAME = "fjstudio-product"

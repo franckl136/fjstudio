@@ -20,7 +20,7 @@ if ($isDirectory) {
   $acl = [Security.AccessControl.DirectorySecurity]::new()
   $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
 } else {
-  if ([IO.Path]::GetFileName($Path) -cnotin @('.env.local','.env.human.local')) { throw 'Unexpected configuration name.' }
+  if ([IO.Path]::GetFileName($Path) -cnotin @('.env.local','.env.human.local','.env.archive.local')) { throw 'Unexpected configuration name.' }
   if ([IO.File]::Exists($Path)) { exit 73 }
   $acl = [Security.AccessControl.FileSecurity]::new()
   $inherit = [Security.AccessControl.InheritanceFlags]::None

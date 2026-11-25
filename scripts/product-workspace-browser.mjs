@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -109,7 +110,11 @@ try {
   server.listen(0,'127.0.0.1');
   await once(server,'listening');
   origin = 'http://127.0.0.1:'+server.address().port;
-  browser = await chromium.launch({executablePath:process.env.STUDIO_QA_BROWSER,headless:true});
+  const installed = process.platform === 'win32' ? [
+    join(process.env.ProgramFiles ?? 'C:\\Program Files','Google','Chrome','Application','chrome.exe'),
+    join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)','Microsoft','Edge','Application','msedge.exe'),
+  ].find(existsSync) : undefined;
+  browser = await chromium.launch({executablePath:process.env.STUDIO_QA_BROWSER || installed,headless:true});
   async function pageFor(viewport) {
     const context = await browser.newContext({viewport,locale:'fr-FR',reducedMotion:'reduce'});
     await context.route('**/*',route=>new URL(route.request().url()).origin===origin ? route.continue() : route.abort());

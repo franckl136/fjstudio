@@ -3,7 +3,9 @@
   "version": "0.3.0-rc.1",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "setup:local": "node scripts/setup-local.ts",
     "setup:identity": "node scripts/setup-identity.ts",
@@ -22,6 +24,9 @@
     "maintenance": "node --env-file=.env.local scripts/product-maintenance.ts once",
     "maintenance:watch": "node --env-file=.env.local scripts/product-maintenance.ts watch",
     "backup:verify": "node --env-file=.env.local scripts/backup-verify.ts",
+    "vault:key": "node scripts/product-vault.ts key",
+    "vault:pack": "node scripts/product-vault.ts pack",
+    "vault:unpack": "node scripts/product-vault.ts unpack",
     "test:browser": "node --env-file=.env.local scripts/product-workspace-browser.mjs",
     "backup": "node scripts/backup.ts",
     "restore": "node scripts/restore.ts"
@@ -32,6 +37,7 @@
   "devDependencies": {
     "@types/node": "^24.10.0",
     "@types/pg": "^8.15.6",
+    "playwright-core": "1.65.1",
     "typescript": "^5.9.3"
   }
 }
