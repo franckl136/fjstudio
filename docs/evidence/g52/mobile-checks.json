@@ -1,0 +1,114 @@
+{
+  "schema": "fjstudio-g52-codechecks-v1",
+  "mode": "mobile",
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "tree": "769fcbd774d0dac1eaced8c0ccee6c879c8dfe73",
+  "at": "2026-11-25T22:50:32.362Z",
+  "platform": "win32",
+  "node": "v24.22.3",
+  "checks": {
+    "lint": "passed",
+    "typecheck": "passed",
+    "vitest": {
+      "total": 123,
+      "passed": 123,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        {
+          "file": "apps/homeos/lib/preview-auth-bypass.test.ts",
+          "passed": 4,
+          "total": 4
+        },
+        {
+          "file": "apps/homeos/lib/session-binding.test.ts",
+          "passed": 5,
+          "total": 5
+        },
+        {
+          "file": "packages/data/src/courses-local.test.ts",
+          "passed": 16,
+          "total": 16
+        },
+        {
+          "file": "packages/data/src/courses-process.test.ts",
+          "passed": 1,
+          "total": 1
+        },
+        {
+          "file": "packages/data/src/courses-rpc.test.ts",
+          "passed": 23,
+          "total": 23
+        },
+        {
+          "file": "packages/data/src/l1-guards.test.ts",
+          "passed": 2,
+          "total": 2
+        },
+        {
+          "file": "packages/data/src/list-items-check.test.ts",
+          "passed": 10,
+          "total": 10
+        },
+        {
+          "file": "packages/data/src/list-items.test.ts",
+          "passed": 1,
+          "total": 1
+        },
+        {
+          "file": "packages/data/src/offline.test.ts",
+          "passed": 2,
+          "total": 2
+        },
+        {
+          "file": "packages/data/src/outbox-flush.test.ts",
+          "passed": 10,
+          "total": 10
+        },
+        {
+          "file": "packages/data/src/outbox-household-switch.test.ts",
+          "passed": 10,
+          "total": 10
+        },
+        {
+          "file": "packages/data/src/outbox-persistent.test.ts",
+          "passed": 12,
+          "total": 12
+        },
+        {
+          "file": "packages/domain/src/faits.test.ts",
+          "passed": 10,
+          "total": 10
+        },
+        {
+          "file": "packages/domain/src/normalize.test.ts",
+          "passed": 2,
+          "total": 2
+        },
+        {
+          "file": "packages/domain/src/parseShoppingQuantity.test.ts",
+          "passed": 4,
+          "total": 4
+        },
+        {
+          "file": "packages/domain/src/shopping-catalog.test.ts",
+          "passed": 2,
+          "total": 2
+        },
+        {
+          "file": "packages/domain/src/smart-add.test.ts",
+          "passed": 9,
+          "total": 9
+        }
+      ]
+    },
+    "webShell": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0
+    }
+  },
+  "finishedAt": "2026-11-25T22:50:44.990Z"
+}

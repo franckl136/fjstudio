@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "sourceBlobs": {
+    "apps/homeos/lib/session-binding.ts": "c78a394081d650263efc7b1ed3b271fe473966a1",
+    "apps/homeos/lib/session-context.tsx": "49f2524f2a4fecb91b63deacda04e7ca5aa2ca88",
+    "packages/data/src/courses-local.ts": "f50ae158ce887d49dcd9e2e227b169d3ea6fd65f",
+    "packages/data/src/courses-quantity.ts": "b9fbd9a4a89f1add7a61bbc49a142e37c0c0a5e1",
+    "packages/data/src/courses-snapshot.ts": "f440e8cc083fcfb6170b1190e42a13a945f78b1b",
+    "packages/data/src/courses-storage.ts": "0a8a2b5c8ce840e920269387e8e1781c62f1f137",
+    "packages/data/src/list-items-map.ts": "a07fa59c0a490aa22035475c18ed99f1883a7dcc"
+  },
+  "profile": "Fonctions committées, PostgREST/AsyncStorage/React/horloge synthétiques hors réseau",
+  "node": "v24.22.3",
+  "rawEvidence": {
+    "shortPage": {
+      "initial": 7,
+      "availableOnServer": 7,
+      "syntheticMode": "cap",
+      "serverCalls": 1,
+      "accepted": true,
+      "cacheAfter": 2
+    },
+    "emptyRlsShape": {
+      "initial": 7,
+      "availableOnServer": null,
+      "syntheticMode": "empty",
+      "serverCalls": 1,
+      "accepted": true,
+      "cacheAfter": 0
+    },
+    "networkFailure": {
+      "initial": 7,
+      "availableOnServer": 7,
+      "syntheticMode": "error",
+      "serverCalls": 1,
+      "accepted": false,
+      "cacheAfter": 7
+    },
+    "ordinaryExpiration": {
+      "tokenSeconds": 10,
+      "firstTimerDelayMs": 10001,
+      "clockPastExpiry": true,
+      "usableByPredicate": false,
+      "scopeVisibleBeforeTimerDispatch": true,
+      "scopeVisibleAfterTimerDispatch": false
+    },
+    "longExpiration": {
+      "tokenSeconds": 2592000,
+      "firstTimerDelayMs": 2147483647,
+      "clockPastExpiry": true,
+      "usableByPredicate": false,
+      "scopeVisibleBeforeTimerDispatch": true,
+      "scopeVisibleAfterTimerDispatch": true
+    }
+  },
+  "date": "2026-11-25T22:51:58.988Z"
+}

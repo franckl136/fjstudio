@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "revision": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "date": "2026-11-25T22:51:32.078Z",
+  "node": "v24.22.3",
+  "vitest": "3.2.7",
+  "profile": "Sources committées extraites dans un nouveau répertoire temporaire, données synthétiques, 2 suites ciblées, aucun serveur distant.",
+  "archiveSha256": "adf872785bed7fb9d2d3ea26656a46c3e41bd1254109e79c48467569696e822e",
+  "rawSha256": "2261c48cf33c192d1fbafafaa79d65f78c0dfc486009438e603c4aec2fb37f19",
+  "passed": 17,
+  "failed": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "file": "courses-local.test.ts",
+      "tests": [
+        {
+          "name": "fusionne les clés catalogue accentuées et les quantités décimales comme le serveur",
+          "status": "passed"
+        },
+        {
+          "name": "conserve un article privé homonyme lorsque le foyer ajoute un article partagé",
+          "status": "passed"
+        },
+        {
+          "name": "archive le conflit sur choix explicite avec un instantané serveur encore courant",
+          "status": "passed"
+        },
+        {
+          "name": "distingue une liste inconnue, une liste vide confirmée et une panne de lecture",
+          "status": "passed"
+        },
+        {
+          "name": "persiste ajout, quantité, renommage, coche, décoche, recoche, suppression et restauration",
+          "status": "passed"
+        },
+        {
+          "name": "ne publie aucune intention ni état fictif sur quota dépassé",
+          "status": "passed"
+        },
+        {
+          "name": "sérialise deux instances natives partageant la clé et préserve deux ajouts voulus",
+          "status": "passed"
+        },
+        {
+          "name": "retient le premier ajout et réécrit les intentions suivantes sur l’article canonique",
+          "status": "passed"
+        },
+        {
+          "name": "protège les actions locales face à un snapshot tardif et refuse les ACK hors identité",
+          "status": "passed"
+        },
+        {
+          "name": "réessaie après perte de réponse avec le même identifiant et respecte le délai",
+          "status": "passed"
+        },
+        {
+          "name": "un ancien bail ou un ACK inversé ne retire pas une autre opération",
+          "status": "passed"
+        },
+        {
+          "name": "conserve le bail et la file si le disque refuse la persistance de l’ACK",
+          "status": "passed"
+        },
+        {
+          "name": "conserve un conflit de suppression sans ressusciter l’article et traite un article indépendant",
+          "status": "passed"
+        },
+        {
+          "name": "isole utilisateur, foyer, liste et aperçu ; refuse un enregistrement privé d’un tiers",
+          "status": "passed"
+        },
+        {
+          "name": "migre l’ancienne file une fois et refuse une ancienne ligne incomplète sans écrasement",
+          "status": "passed"
+        },
+        {
+          "name": "préserve les enveloppes illisibles, version inconnue et identité altérée",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "courses-process.test.ts",
+      "tests": [
+        {
+          "name": "reconstruit les Courses hors ligne après arrêts de processus avant écriture, après validation locale et avant ACK",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}
