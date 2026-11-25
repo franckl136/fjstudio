@@ -1,0 +1,122 @@
+import assert from 'node:assert/strict';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import { test } from 'node:test';
+import { createPool } from '../src/config.ts';
+import { Core, migrate } from '../src/core.ts';
+import { createServer } from '../src/http.ts';
+import { HumanAccess, totp, verifyIdentityMode } from '../src/product-auth.ts';
+import { selectMissionKnowledge } from '../src/product-intelligence.ts';
+import { transaction } from '../src/database.ts';
+
+function seed(value:string) {
+  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const bits=Array.from(value,c=>alphabet.indexOf(c).toString(2).padStart(5,'0')).join('');
+  return Buffer.from(bits.match(/.{8}/g)!.map(v=>parseInt(v,2)));
+}
+test('TOTP · vecteur de référence RFC 6238 SHA-1 à 59 secondes',()=>{
+  assert.equal(totp(Buffer.from('12345678901234567890'),1,8),'94287082');
+});
+
+test('Comptes humains · activation, trois rôles, projet, rejeu, verrouillage et révocation',async t=>{
+  const url=new URL(process.env.DATABASE_URL!), admin=createPool(url.href);
+  const name='fjstudio_a1_test_'+randomUUID().replaceAll('-','');
+  await admin.query('CREATE DATABASE '+name+' TEMPLATE template0');
+  url.pathname='/'+name;
+  const db=createPool(url.href);
+  t.after(async()=>{await db.end();try{await admin.query('DROP DATABASE '+name);}finally{await admin.end();}});
+  await migrate(db);
+  const master=randomBytes(32), bootstrap=randomBytes(24).toString('base64url');
+  const store=new HumanAccess(db,master);
+  await verifyIdentityMode(db,master);
+  await assert.rejects(verifyIdentityMode(db));
+  await assert.rejects(verifyIdentityMode(db,randomBytes(32)));
+  await verifyIdentityMode(db,master);
+  const primary={id:'operator-local',kind:'operator' as const,token:bootstrap,projectIds:['a','b']};
+  const server=createServer(new Core(db),[primary],master);
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(()=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();}));
+  const base='http://127.0.0.1:'+(server.address() as AddressInfo).port;
+  const password=randomBytes(21).toString('base64url');
+  async function enroll(invitation:string,first=false) {
+    const activation=await store.begin(invitation,first?primary:undefined);
+    const secret=seed(activation.secret);
+    const old=totp(secret,Math.floor(Date.now()/30000)-1);
+    const session=await store.finish(activation.ticket,password,old);
+    await assert.rejects(store.finish(activation.ticket,password,old));
+    const actor=await store.actor(session);
+    assert.ok(actor);
+    return {session,actor,secret};
+  }
+  const root=await enroll(bootstrap,true);
+  assert.equal(root.actor.accountRole,'admin');
+  await assert.rejects(store.begin(bootstrap,primary));
+  const invited=await store.invite(root.actor,'reader','viewer',['a']);
+  const abandoned=await store.begin(invited,undefined);
+  const replacement=await store.renew(root.actor,'reader');
+  await assert.rejects(store.finish(abandoned.ticket,password,totp(seed(abandoned.secret),Math.floor(Date.now()/30000))));
+  const reader=await enroll(replacement);
+  const operator=await enroll(await store.invite(root.actor,'writer','operator',['a']));
+  assert.equal(operator.actor.accountRole,'operator');
+  await assert.rejects(store.invite(operator.actor,'another','viewer',['a']));
+  await assert.rejects(store.renew(root.actor,'reader'));
+  function request(path:string,session:string,method='GET',data?:object,origin=base) {
+    return fetch(base+path,{method,headers:{Cookie:'studio_product_session='+session,Origin:origin,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});
+  }
+  assert.equal((await request('/api/projects/a',reader.session)).status,200);
+  assert.equal((await request('/api/projects/b',reader.session)).status,404);
+  const mission={fixtureId:'nominal',commandKey:randomUUID()};
+  assert.equal((await request('/api/projects/a/missions',reader.session,'POST',mission)).status,403);
+  assert.equal((await request('/api/projects/a/missions',operator.session,'POST',mission)).status,201);
+  assert.equal((await request('/api/projects/a/missions',operator.session,'POST',mission,'http://localhost')).status,403);
+  assert.equal((await request('/people',operator.session)).status,403);
+  assert.equal((await request('/people',root.session)).status,200);
+  assert.equal((await fetch(base+'/api/projects',{headers:{Authorization:'Bearer '+bootstrap}})).status,401);
+  const code=totp(reader.secret,Math.floor(Date.now()/30000));
+  const second=await store.login('reader',password,code);
+  await assert.rejects(store.login('reader',password,code));
+  await store.setProjects(root.actor,'reader',['b']);
+  assert.equal((await request('/api/projects/a',second)).status,404);
+  assert.equal((await request('/api/projects/b',second)).status,200);
+  const restricted={...root.actor,projectIds:['a']};
+  await assert.rejects(store.disable(restricted,'reader'));
+  await store.disable(root.actor,'reader');
+  assert.equal(await store.actor(second),null);
+  await db.query("UPDATE studio_sessions SET expires_at=now()-interval '1 hour' WHERE account_id='writer'");
+  assert.equal(await store.actor(operator.session),null);
+  for(let i=0;i<5;i++) await assert.rejects(store.login('writer','invalid','000000'));
+  const stored=(await db.query("SELECT locked_until>now() AS locked,totp_secret,password_hash FROM studio_accounts WHERE id='writer'")).rows[0];
+  assert.ok(stored.locked);
+  assert.equal(stored.totp_secret.includes(operator.secret.toString('base64url')),false);
+  assert.equal(stored.password_hash.equals(Buffer.from(password)),false);
+  await store.logout(root.session);
+  assert.equal(await store.actor(root.session),null);
+});
+
+test('Intelligence · import Git borné, révisions, sélection par projet et révocation',async t=>{
+  const url=new URL(process.env.DATABASE_URL!), admin=createPool(url.href);
+  const name='fjstudio_a1_test_'+randomUUID().replaceAll('-','');
+  await admin.query('CREATE DATABASE '+name+' TEMPLATE template0');
+  url.pathname='/'+name;const db=createPool(url.href);
+  t.after(async()=>{await db.end();try{await admin.query('DROP DATABASE '+name);}finally{await admin.end();}});
+  await migrate(db);
+  const core=new Core(db), operator={id:'human-synthetic',projectIds:['a']};
+  const imported=await core.knowledge.importDocument(operator,'a','architecture');
+  assert.deepEqual(await core.knowledge.importDocument(operator,'a','architecture'),imported);
+  await assert.rejects(core.knowledge.importDocument(operator,'a','../../other'));
+  await assert.rejects(core.knowledge.importDocument(operator,'b','architecture'));
+  const {item}=await core.knowledge.detail(operator,'a',imported.id);
+  assert.match(item.reference,/SHA-256 [0-9a-f]{64} · commit [a-f0-9]{40}$/);
+  const select=(project:string)=>transaction(db,client=>selectMissionKnowledge(client,project,item.title,[]));
+  assert.deepEqual(await select('a'),[]);
+  await core.knowledge.revise(operator,'a',item.id,{action:'validate',version:1});
+  assert.deepEqual(await select('a'),[]);
+  await core.knowledge.revise(operator,'a',item.id,{action:'edit',version:2,title:item.title,content:item.content,scope:'control'});
+  await core.knowledge.revise(operator,'a',item.id,{action:'validate',version:3});
+  const frozen=await select('a');assert.equal(frozen[0].version,4);assert.equal(frozen[0].digest.length,64);
+  assert.deepEqual(await select('b'),[]);
+  await core.knowledge.revise(operator,'a',item.id,{action:'revoke',version:4});
+  assert.deepEqual(await select('a'),[]);
+  assert.equal(frozen[0].content,item.content);
+});

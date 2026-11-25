@@ -182,7 +182,7 @@ export class Core {
   readonly knowledge: Knowledge;
   readonly appLab: AppLab;
   readonly repositories: Repositories;
-  private pool: Pool;
+  readonly pool: Pool;
   private leaseMs: number;
   private horizonMs: number;
   private maxAttempts: number;

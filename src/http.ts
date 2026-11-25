@@ -1,4 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { productReviewRoute } from './product-review-routes.ts';
+import { productCampaignRoute } from './product-campaign-routes.ts';
+import { productHandoffRoute } from './product-handoff-routes.ts';
+import { documentPlan, controlAdapters } from './control-room-adapters.ts';
 import { createServer as createHttpServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -7,6 +11,11 @@ import type { Credential, JsonObject, Operator, ProjectId } from './contracts.ts
 import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts';
 import { loginPage, projectPage, missionPage, errorPage } from './views.ts';
 
+import { HumanAccess, identityKey } from './product-auth.ts';
+import { cookie, humanCookie, humanLogin, humanRoute } from './product-auth-routes.ts';
+import { workspaceRoute } from './product-workspace-routes.ts';
+import { controlRoomRoute,controlRunnerRoute } from './control-room-routes.ts';
+import { productLabRoute } from './product-lab-routes.ts';
 import { visibleAgents } from './agents.ts';
 import { repositoryRoute } from './repository-routes.ts';
 import { handleAppLabRoute } from './app-lab-routes.ts';
@@ -95,7 +104,8 @@ function localAuthority(req: IncomingMessage): string {
   return host;
 }
 
-export function createServer(core: Core, credentials: readonly Credential[]): Server {
+export function createServer(core: Core, credentials: readonly Credential[], humanKey: Buffer | undefined = process.env.STUDIO_HUMAN_AUTH === '1' ? identityKey() : undefined): Server {
+  const human = humanKey ? new HumanAccess(core.pool,humanKey) : null;
   const identities = new Map(credentials.map(value => [hash(value.token), value]));
   const sessions = new Map<string, { actor: Operator; expiresAt: number }>();
 
@@ -115,6 +125,15 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
   }
 
   async function studioRoute(req: IncomingMessage, res: ServerResponse, url: URL, actor: Operator, api: boolean) {
+    if (actor.accountRole === 'viewer' && req.method !== 'GET') fail(403,'read_only','Ce compte dispose d’un accès en lecture.');
+    const io = {body,json,html,redirect,runners:credentials.flatMap(c=>c.kind==='runner'?[{id:c.id,projectId:c.projectId,role:c.role}]:[])};
+    if (!api && url.pathname==='/' && req.method==='GET') { redirect(res,'/workspace'); return true; }
+    if (await workspaceRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await productReviewRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await productHandoffRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await controlRoomRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await productCampaignRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await productLabRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await repositoryRoute(core,req,res,url,actor,api,body)) return true;
     if (await handleAppLabRoute(core,req,res,url,actor,api,{body,json,html,redirect})) return true;
     const path = api ? url.pathname.slice(4) : url.pathname;
@@ -123,7 +142,10 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
       const agents = visibleAgents(credentials,actor).map(agent => ({
         ...agent, activity: activity.find(r=>r.runner_id===agent.id && r.project_id===agent.project && r.role===agent.role) ?? null,
       }));
-      if (api) json(res,200,{agents});
+      if (api) json(res,200,{agents,adapters:documentPlan.map(task=>({
+        id:controlAdapters[task.key].id,capability:task.capability,role:task.role,dependencies:task.dependencies,
+        runtime:'local',externalCostCents:0
+      }))});
       else html(res,200,agentPage(await core.listProjects(actor),agents));
       return true;
     }
@@ -143,17 +165,17 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
         const filters = url.searchParams;
         const items = await core.knowledge.list(actor,project,filters.get('q')??'',filters.get('kind')??'',filters.get('status')??'',filters.get('origin')??'',filters.get('relatedTo')??'');
         if (api) json(res,200,{items});
-        else html(res,200,knowledgePage(await core.listProjects(actor),project,items,filters));
+        else html(res,200,knowledgePage(await core.listProjects(actor),project,items,filters,actor.accountRole!=='viewer'));
       } else if (get && uuid(id)) {
         const data = await core.knowledge.detail(actor,project,id);
         if (api) json(res,200,data);
-        else html(res,200,knowledgeDetail(await core.listProjects(actor),data));
+        else html(res,200,knowledgeDetail(await core.listProjects(actor),data,actor.accountRole!=='viewer'));
       } else if (post) {
         const input = await body(req,api?'json':'form');
         let result: {id:string};
         if (id==='import') {
-          exactKeys(input);
-          result=await core.knowledge.importDocument(actor,project);
+          exactKeys(input,...(Object.hasOwn(input,'document')?['document']:[]));
+          result=await core.knowledge.importDocument(actor,project,input.document);
         } else if (!id) {
           const fields=['kind','origin','title','content','scope','reference','relatedId','confidence','validity','claimKey','claimValue'];
           if (Object.keys(input).some(k=>!fields.includes(k))) fail(400,'parameters','Champ de proposition inattendu.');
@@ -201,10 +223,12 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
   }
 
   return createHttpServer({ requestTimeout: 10_000 }, async (req, res) => {
+    const correlation = randomUUID();
+    res.setHeader('X-Request-Id', correlation);
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
     const isApi = req.url?.startsWith('/api/') ?? false;
     try {
       const host = localAuthority(req);
@@ -218,10 +242,19 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
       }
 
       if (isApi) {
-        const auth = bearer(req);
+        let auth = bearer(req);
+        if (human && auth?.kind === 'operator') auth = undefined;
+        if (human && !auth && !path.startsWith('/api/runner/')) {
+          const actor = await human.actor(cookie(req,humanCookie));
+          if (actor) {
+            if (method !== 'GET' && req.headers.origin !== 'http://'+host) fail(403,'origin','Origine non autorisée.');
+            auth = {...actor,token:'',kind:'operator'};
+          }
+        }
         if (!auth) fail(401, 'authentication', 'Identité locale requise.');
         if (path.startsWith('/api/runner/')) {
           if (auth.kind !== 'runner') fail(403, 'scope', 'Accès réservé au runner de confiance.');
+          if (await controlRunnerRoute(core.pool,req,res,url,auth,{body,json})) return;
           if (method === 'POST' && path === '/api/runner/claim') {
             exactKeys(await body(req, 'json'));
             json(res, 200, { assignment: await core.claim(auth) });
@@ -281,8 +314,10 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
       if (method === 'POST' && req.headers.origin !== 'http://' + host) {
         fail(403, 'origin', 'Origine de la requête non autorisée.');
       }
-      const session = browserSession(req);
-      if (path === '/login' && method === 'POST') {
+      const humanActor = human ? await human.actor(cookie(req,humanCookie)) : null;
+      if (human && await humanRoute(human,req,res,path,humanActor,credentials,{body,html,redirect})) return;
+      const session = human ? (humanActor ? {actor:humanActor,key:''} : null) : browserSession(req);
+      if (!human && path === '/login' && method === 'POST') {
         const value = await body(req, 'form');
         exactKeys(value, 'token');
         const auth = typeof value.token === 'string' && value.token.length <= 128
@@ -305,7 +340,7 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
       }
       if (!session) {
         if (method === 'GET') {
-          html(res, 200, loginPage());
+          html(res, 200, human ? humanLogin() : loginPage());
           return;
         }
         fail(401, 'authentication', 'Identité locale requise.');
@@ -331,7 +366,7 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
         if (method === 'GET' && path === '/projects/' + project) {
           const projects = await core.listProjects(actor);
           const selected = await core.getProject(actor, project);
-          html(res, 200, projectPage(projects, selected, randomUUID()));
+          html(res, 200, projectPage(projects, selected, randomUUID(),actor.accountRole!=='viewer'));
           return;
         }
         if (method === 'POST' && path === '/projects/' + project + '/missions') {
@@ -347,7 +382,7 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
         if (method === 'GET' && uuid(mission) && !route[3]) {
           const projects = await core.listProjects(actor);
           const detail = await core.getMission(actor, project, mission);
-          html(res, 200, missionPage(projects, detail));
+          html(res, 200, missionPage(projects, detail,actor.accountRole!=='viewer'));
           return;
         }
         if (method === 'POST' && uuid(mission) && route[3]) {
@@ -363,7 +398,10 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
       if (res.headersSent || res.destroyed) return;
       const problem = error instanceof DomainError ? error :
         new DomainError(503, 'unavailable', 'Service local indisponible. Vérifiez le Core et PostgreSQL.');
-      if (!(error instanceof DomainError)) console.error('La demande A1 a échoué.', (error as { code?: string }).code ?? 'internal');
+      if (!(error instanceof DomainError)) {
+        const code=error && typeof error==='object' && 'code' in error ? error.code : undefined;
+        console.error(JSON.stringify({event:'request_failed',correlation,code:typeof code==='string' && /^[A-Z0-9]{5}$/.test(code)?code:'internal'}));
+      }
       if (isApi) json(res, problem.status, { error: { code: problem.code, message: problem.message } });
       else html(res, problem.status, errorPage(problem.message));
     }

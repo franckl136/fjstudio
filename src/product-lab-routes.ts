@@ -61,12 +61,13 @@ function showOverview(project:ProjectId, page:'lab'|'quality', data:LabState, wr
   }
   const comparisons = [...groups.values()].filter(group=>group.length>1).map(group=>{
     const results = (selected:number) => group.map((r,index)=>
-      option(r.id,r.commit_sha.slice(0,12)+' · '+date(r.created_at),index===selected)).join('');
+      option(r.id,r.commit_sha.slice(0,12)+' · '+r.created_at.toISOString(),index===selected)).join('');
     return '<form method="get" action="'+base+'/compare"><fieldset><legend>'+e(group[0].source_key)+' · '+e(labProfiles[group[0].profile].title)+'</legend>' +
       '<label>Premier passage<select name="before">'+results(1)+'</select></label><label>Second passage<select name="after">'+results(0)+
       '</select></label><button>Comparer</button></fieldset></form>';
   }).join('');
   const content = `<header class="heading"><div><h1>${heading}</h1><p>${isLab?'Prévisualiser un document HTML versionné dans Chromium isolé.':'Exécuter un profil, examiner son verdict et comparer deux révisions.'}</p></div></header>
+    ${!isLab && project==='a'?'<p><a href="/projects/a/quality/campaigns">Campagnes de tests du Studio</a></p>':''}
     ${writable?`<section class="panel"><h2>${isLab?'Nouvelle preview':'Nouvelle qualification'}</h2>
     <form method="post" action="${base}"><input type="hidden" name="commandKey" value="${randomUUID()}">
     <label>Source et profil<select name="selection" required>${selections}</select></label>
