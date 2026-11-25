@@ -1,0 +1,13 @@
+{
+  "schema": "fjstudio-device-inventory-v1",
+  "observedAt": "2026-11-25T22:41:05.9052890+00:00",
+  "operatingSystem": "Windows",
+  "adbAvailable": false,
+  "adbStates": [],
+  "emulatorAvailable": false,
+  "configuredAvds": 0,
+  "pnpCandidates": 0,
+  "usbIosCandidates": 0,
+  "iosToolAvailable": false,
+  "qualification": "inventory-only"
+}
