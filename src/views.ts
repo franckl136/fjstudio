@@ -71,10 +71,25 @@ function pretty(value: unknown): string {
 export function layout(
   title: string,
   content: string,
-  projects: Projects = [],
+  projects: Pick<Projects[number], 'id' | 'name'>[] = [],
   selected = '',
   authenticated = false,
+  activeModule = '',
 ): string {
+  const current = projects.find(project => project.id === selected) ?? projects[0];
+  const navigation: [string,string,string,string][] = [
+    ['workspace','Command Center','/workspace','▦'],
+    ['office','Agent Office','/office','▧'],
+  ];
+  if (current) {
+    const prefix = '/projects/' + encodeURIComponent(current.id);
+    navigation.push(
+      ['control','Agent Control Room',prefix + '/control','⇄'],
+      ['knowledge','Project Intelligence',prefix + '/knowledge','≡'],
+      ['quality','Quality Lab',prefix + '/quality','✓'],
+      ['lab','App Lab',prefix + '/lab','▣'],
+    );
+  }
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -86,19 +101,19 @@ export function layout(
 <body>
 <a href="#contenu" class="skip">Aller au contenu</a>
 <header class="topbar">
-  <a class="brand" href="/"><span class="mark" aria-hidden="true">FJ</span> Folk &amp; Joy Studio</a>
+  <a class="brand" href="${authenticated ? '/workspace' : '/'}"><span class="mark" aria-hidden="true">FJ</span><span>Folk &amp; Joy <b>Studio</b></span></a>
   <div class="header-actions">
     <span class="local"><span aria-hidden="true"></span> Espace local</span>
     ${authenticated ? '<form action="/logout" method="post"><button class="quiet">Déconnexion</button></form>' : ''}
   </div>
 </header>
-<div class="frame ${projects.length ? '' : 'without-sidebar'}">
-  ${projects.length ? `<nav aria-label="Projets" class="sidebar">
-    <a href="/" class="workspace-link">Command Center</a>
-    <a href="/agents" class="workspace-link">Agent Control Room</a>
-    <h2>Projets</h2>
-    ${projects.map(project => `<a href="/projects/${e(project.id)}"${selected === project.id ? ' aria-current="page"' : ''}>
-      <span class="project-mark" aria-hidden="true">${e(project.id.toUpperCase())}</span>${e(project.name)}
+<div class="frame ${authenticated ? '' : 'without-sidebar'}">
+  ${authenticated ? `<nav aria-label="Navigation du Studio" class="sidebar">
+    <h2>Espaces</h2>
+    ${navigation.map(([key,name,path,symbol]) => `<a class="workspace-link" href="${e(path)}"${activeModule === key || (!activeModule && title === name) ? ' aria-current="page"' : ''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('')}
+    ${projects.length ? '<h2 class="project-label">Projets</h2>' : ''}
+    ${projects.map(project => `<a href="/projects/${e(project.id)}"${selected === project.id ? ' class="selected-project"' : ''}>
+      <span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>${e(project.name)}
     </a>`).join('')}
   </nav>` : ''}
   <main id="contenu" class="content">${content}</main>
@@ -110,7 +125,7 @@ export function layout(
 export function loginPage(error?: string): string {
   return layout('Connexion', `<section class="panel login">
     <h1>Connexion au Studio</h1>
-    <p>Utilisez votre clé opérateur locale.</p>
+    <p>Ouvrez votre espace avec votre clé opérateur locale.</p>
     ${error ? `<p class="error" role="alert">${e(error)}</p>` : ''}
     <form action="/login" method="post">
       <label for="token">Clé opérateur</label>
@@ -125,7 +140,7 @@ export function errorPage(message: string): string {
     <p role="alert">${e(message)}</p><a href="/">Retour au Studio</a></section>`);
 }
 
-export function projectPage(projects: Projects, project: Project, commandKey: string): string {
+export function projectPage(projects: Projects, project: Project, commandKey: string, canOperate = true): string {
   const missionList = project.missions.length > 0
     ? `<ul class="mission-list">${project.missions.map(mission => `<li>
         <a href="/projects/${e(project.id)}/missions/${e(mission.id)}">
@@ -136,16 +151,20 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
       </li>`).join('')}</ul>`
     : '<p class="empty">Aucune mission pour ce projet. Lancez un premier cas pour consulter ses preuves.</p>';
   return layout(project.name, `
-  <div class="heading"><div><h1>${e(project.name)}</h1><p>Contexte et missions déterministes</p></div></div>
+  <div class="heading"><div><h1>${e(project.name)}</h1></div>
+    <a class="button" href="/projects/${e(project.id)}/settings">Profil du projet</a></div>
   <nav class="actions project-tools" aria-label="Outils du projet">
     <a class="button" href="/projects/${e(project.id)}/knowledge">Project Intelligence · Connaissances</a>
     <a class="button" href="/projects/${e(project.id)}/repository">Dépôt et versions</a>
-    <a class="button" href="/projects/${e(project.id)}/app-lab">App Lab</a></nav>
+    ${project.id === 'a' ? '<a class="button" href="/projects/a/review">Revue des changements Git</a>' : ''}
+    <a class="button" href="/projects/${e(project.id)}/control">Missions et agents</a>
+    <a class="button" href="/projects/${e(project.id)}/quality">Quality Lab</a>
+    <a class="button" href="/projects/${e(project.id)}/lab">App Lab</a></nav>
   <div class="overview">
     <section class="panel"><h2>Contexte du projet</h2>
-      <p>${e(project.context.description)}</p><span class="badge">Données synthétiques</span>
+      <p>${e(project.context.description)}</p>${project.context.classification === 'synthetic' ? '<span class="badge">Données synthétiques</span>' : ''}
     </section>
-    <section class="panel"><h2>Lancer une mission A1</h2>
+    ${canOperate ? `<section class="panel"><h2>Lancer une mission A1</h2>
       <form action="/projects/${e(project.id)}/missions" method="post">
         <input type="hidden" name="commandKey" value="${e(commandKey)}">
         <label for="fixtureId">Jeu de données synthétique</label>
@@ -155,12 +174,12 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
         </select>
         <button class="primary">Lancer la mission</button>
       </form>
-    </section>
+    </section>` : ''}
   </div>
   <section class="panel"><h2>Missions</h2>${missionList}</section>`, projects, project.id, true);
 }
 
-export function missionPage(projects: Projects, mission: Mission): string {
+export function missionPage(projects: Projects, mission: Mission, canOperate = true): string {
   const address = `/projects/${e(mission.projectId)}/missions/${e(mission.id)}`;
   const live = mission.status === 'ready' || mission.status === 'running';
   const verdict = mission.steps.find(step => step.role === 'verifier')?.checkpoint?.artifact;
@@ -190,15 +209,15 @@ export function missionPage(projects: Projects, mission: Mission): string {
       <div class="actions">
         <a class="button" href="${address}">Actualiser</a>
         <a class="button" href="${address}/report">Exporter le rapport JSON</a>
-        ${['failed','cancelled'].includes(mission.status) ? `<details><summary>Relancer</summary><form action="${address}/relaunch" method="post">
+        ${canOperate && ['failed','cancelled'].includes(mission.status) ? `<details><summary>Relancer</summary><form action="${address}/relaunch" method="post">
         <input type="hidden" name="commandKey" value="${randomUUID()}"><label><input type="checkbox" required name="confirm" value="yes"> Créer une nouvelle mission avec la même fixture et le contexte validé actuel</label><button>Relancer la mission</button></form></details>` : ''}
-        ${live && !mission.steps.some(s=>s.attempts.some(a=>a.status==='active')) ? `<form action="${address}/pause" method="post"><button>Suspendre</button></form>` : ''}
-        ${mission.status === 'paused' ? `<form action="${address}/resume" method="post"><button>Reprendre</button></form>` : ''}
-        ${live || mission.status === 'paused' ? `<details><summary>Annuler la mission</summary><form action="${address}/cancel" method="post">
+        ${canOperate && live && !mission.steps.some(s=>s.attempts.some(a=>a.status==='active')) ? `<form action="${address}/pause" method="post"><button>Suspendre</button></form>` : ''}
+        ${canOperate && mission.status === 'paused' ? `<form action="${address}/resume" method="post"><button>Reprendre</button></form>` : ''}
+        ${canOperate && (live || mission.status === 'paused') ? `<details><summary>Annuler la mission</summary><form action="${address}/cancel" method="post">
           <label><input type="checkbox" name="confirm" value="yes" required> Confirmer l’annulation et invalider les tentatives en cours</label><button>Confirmer l’annulation</button></form></details>` : ''}
       </div>
     </section>
-    ${live && mission.steps.some(s=>s.attempts.some(a=>a.status==='active')) ? '<p>La suspension devient disponible à la fin de la tentative active.</p>' : ''}
+    ${canOperate && live && mission.steps.some(s=>s.attempts.some(a=>a.status==='active')) ? '<p>La suspension devient disponible à la fin de la tentative active.</p>' : ''}
     ${mission.status==='succeeded' ? '<p>Cette mission est clôturée. Les preuves et le rapport restent consultables.</p>' : ''}
     ${mission.repository ? `<section class="panel"><h2>Version du dépôt associée</h2>
     <p>${e(mission.repository.repository_key)} · ${e(mission.repository.branch ?? 'HEAD détachée')} · observée le ${date(mission.repository.observed_at)}</p>

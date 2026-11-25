@@ -1,3 +1,5 @@
+import { documentOptions } from './product-documents.ts';
+import { controlAdapters, documentPlan } from './control-room-adapters.ts';
 import { capabilityLabels, type visibleAgents } from './agents.ts';
 import type { Core } from './core.ts';
 import { confidenceLevels, kinds, origins, scopes, statuses, type KnowledgeRow } from './knowledge.ts';
@@ -57,8 +59,11 @@ export function agentPage(projects: Projects, agents: AgentEntry[]) {
     }).join('');
     return `<section class="panel"><h2>${e(project.name)}</h2><ul class="agent-list">${rows}</ul></section>`;
   });
-  return layout('Agent Control Room',`<div class="heading"><div><h1>Agent Control Room</h1>
+  const adapters=documentPlan.map(task=>`<li><strong>${e(task.label)}</strong><span>${e(controlAdapters[task.key].id)} · ${e(task.capability)}</span></li>`).join('');
+  return layout('Catalogue des agents',`<div class="heading"><div><h1>Catalogue des agents</h1>
     <p>Rôles autorisés et activité constatée par le Core</p></div><a class="button" href="/agents">Actualiser</a></div>
+    <section class="panel"><h2>Adaptateurs du Control Room</h2><ul class="mission-list">${adapters}</ul>
+    <p>Ces adaptateurs traitent les documents sur ce poste. Codex, ChatGPT et Cursor requièrent une intégration et une politique de coût avant de pouvoir recevoir une mission.</p></section>
     <div class="overview">${sections.join('')}</div>`,projects,'',true);
 }
 
@@ -73,7 +78,7 @@ function contentFields(item?: KnowledgeRow) {
       <p>Deux fiches portant des valeurs différentes sur le même sujet sont signalées pour examen.</p></details>
     <label>Utilisation après validation<select name="scope">${options(scopes,item?.scope??'reference')}</select></label>`;
 }
-export function knowledgePage(projects: Projects, project: string, items: KnowledgeRow[], filters: URLSearchParams) {
+export function knowledgePage(projects: Projects, project: string, items: KnowledgeRow[], filters: URLSearchParams, canOperate = true) {
   const path='/projects/'+e(project)+'/knowledge';
   return layout('Project Intelligence',`<a class="back" href="/projects/${e(project)}">← Projet ${e(project.toUpperCase())}</a>
     <div class="heading"><div><h1>Project Intelligence</h1><p>Connaissances du projet ${e(project.toUpperCase())}</p></div></div>
@@ -85,16 +90,16 @@ export function knowledgePage(projects: Projects, project: string, items: Knowle
     <label>Fiches liées à l’identifiant<input name="relatedTo" maxlength="36" value="${e(filters.get('relatedTo')??'')}"></label>
     <button>Rechercher</button></form>
     ${items.length ? `<ul class="mission-list">${items.map(r=>`<li><a href="${path}/${e(r.id)}"><strong>${e(r.title)}</strong><span>${e(kinds[r.kind])} · v${r.version}</span></a><span class="badge">${e(statuses[r.status])}</span></li>`).join('')}</ul>` : '<p>Aucune fiche pour cette recherche.</p>'}</section>
-    <div class="overview"><section class="panel"><h2>Nouvelle proposition</h2><form action="${path}" method="post" class="stack">
+    ${canOperate ? `<div class="overview"><section class="panel"><h2>Nouvelle proposition</h2><form action="${path}" method="post" class="stack">
     ${contentFields()}<label>Type<select name="kind">${options(kinds)}</select></label>
     <label>Origine déclarée<select name="origin">${options(Object.fromEntries(Object.entries(origins).filter(([key])=>key!=='imported')))}</select></label>
     <label>Source ou auteur d’origine<input name="reference" maxlength="320"></label>
     <label>Identifiant d’une fiche liée (facultatif)<input name="relatedId" maxlength="36"></label><button>Enregistrer la proposition</button></form></section>
-    <section class="panel"><h2>Document Markdown du projet</h2><p>Importer la note synthétique de la révision Git locale. Sa provenance et son empreinte accompagnent la proposition.</p>
-    <form action="${path}/import" method="post"><button>Importer la note du projet</button></form></section></div>`,projects,project,true);
+    <section class="panel"><h2>Document Markdown du projet</h2><p>Le commit et l’empreinte du document accompagnent la proposition.</p>
+    <form action="${path}/import" method="post"><label>Source autorisée<select name="document">${documentOptions(project).map(d=>`<option value="${e(d.id)}">${e(d.entry)}</option>`).join('')}</select></label><button>Importer le document</button></form></section></div>` : ''}`,projects,project,true);
 }
 
-export function knowledgeDetail(projects: Projects, detail: Detail) {
+export function knowledgeDetail(projects: Projects, detail: Detail, canOperate = true) {
   const {item:r,history,uses,related}=detail;
   const base='/projects/'+e(r.project_id)+'/knowledge';
   const path=base+'/'+e(r.id);
@@ -115,10 +120,10 @@ export function knowledgeDetail(projects: Projects, detail: Detail) {
       return `<p>${c.reason==='assertion'?'Valeurs déclarées différentes':'Versions documentaires divergentes'} ·
         <a href="${base}/${e(first?c.second_id:c.first_id)}">${e(first?c.second_title:c.first_title)} · v${first?c.second_version:c.first_version}</a></p>`;
     }).join('')}</section>` : ''}
-    ${allowed.length ? `<section class="panel"><h2>Décision opérateur</h2><form class="stack" method="post" action="${path}">${version}
+    ${canOperate && allowed.length ? `<section class="panel"><h2>Décision opérateur</h2><form class="stack" method="post" action="${path}">${version}
     <label><input type="checkbox" required name="confirm" value="yes"> Confirmer la décision sur la version ${r.version}</label><div class="actions">
     ${allowed.map(a=>`<button name="action" value="${a}">${e(actions[a])}</button>`).join('')}</div></form></section>`:''}
-    ${r.status!=='revoked'?`<details class="panel"><summary>Proposer une modification</summary><form class="stack" method="post" action="${path}">${version}
+    ${canOperate && r.status!=='revoked'?`<details class="panel"><summary>Proposer une modification</summary><form class="stack" method="post" action="${path}">${version}
     ${contentFields(r)}<button name="action" value="edit">Soumettre à validation</button></form></details>`:''}
     <section class="panel"><h2>Missions ayant utilisé cette fiche</h2>${uses.map(u=>`<p>${missionLink(r.project_id,u.mission_id,u.mission_id)} · v${u.version}</p>`).join('')||'<p>Aucune utilisation enregistrée.</p>'}</section>
     <section class="panel"><h2>Historique des versions</h2>${history.map(h=>`<details id="v${h.version}"><summary>v${h.version} · ${e(statuses[h.status])} · ${e(h.actor)} · ${date(h.at)}</summary>
