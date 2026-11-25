@@ -7,6 +7,12 @@ import type { Credential, JsonObject, Operator, ProjectId } from './contracts.ts
 import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts';
 import { loginPage, projectPage, missionPage, errorPage } from './views.ts';
 
+import { visibleAgents } from './agents.ts';
+import { repositoryRoute } from './repository-routes.ts';
+import { handleAppLabRoute } from './app-lab-routes.ts';
+import { agentPage, commandPage, knowledgePage, knowledgeDetail } from './studio-views.ts';
+import { missionQuality } from './quality.ts';
+
 const css = readFileSync(new URL('./style.css', import.meta.url));
 const cookieName = 'a1_operator';
 const sessionTtlMs = 8 * 60 * 60 * 1000;
@@ -108,6 +114,92 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
     return match ? identities.get(hash(match[1])) : undefined;
   }
 
+  async function studioRoute(req: IncomingMessage, res: ServerResponse, url: URL, actor: Operator, api: boolean) {
+    if (await repositoryRoute(core,req,res,url,actor,api,body)) return true;
+    if (await handleAppLabRoute(core,req,res,url,actor,api,{body,json,html,redirect})) return true;
+    const path = api ? url.pathname.slice(4) : url.pathname;
+    if (path === '/agents' && req.method === 'GET') {
+      const activity = await core.agentActivity(actor);
+      const agents = visibleAgents(credentials,actor).map(agent => ({
+        ...agent, activity: activity.find(r=>r.runner_id===agent.id && r.project_id===agent.project && r.role===agent.role) ?? null,
+      }));
+      if (api) json(res,200,{agents});
+      else html(res,200,agentPage(await core.listProjects(actor),agents));
+      return true;
+    }
+    const get = req.method === 'GET';
+    const post = req.method === 'POST';
+    if ((path==='/' || path==='/command') && get) {
+      const data = await core.overview(actor);
+      if (api) json(res,200,data);
+      else html(res,200,commandPage(data));
+      return true;
+    }
+    const memory = /^\/projects\/([^/]+)\/knowledge(?:\/([^/]+))?$/.exec(path);
+    if (memory) {
+      const project = projectId(memory[1]);
+      const id = memory[2];
+      if (get && !id) {
+        const filters = url.searchParams;
+        const items = await core.knowledge.list(actor,project,filters.get('q')??'',filters.get('kind')??'',filters.get('status')??'',filters.get('origin')??'',filters.get('relatedTo')??'');
+        if (api) json(res,200,{items});
+        else html(res,200,knowledgePage(await core.listProjects(actor),project,items,filters));
+      } else if (get && uuid(id)) {
+        const data = await core.knowledge.detail(actor,project,id);
+        if (api) json(res,200,data);
+        else html(res,200,knowledgeDetail(await core.listProjects(actor),data));
+      } else if (post) {
+        const input = await body(req,api?'json':'form');
+        let result: {id:string};
+        if (id==='import') {
+          exactKeys(input);
+          result=await core.knowledge.importDocument(actor,project);
+        } else if (!id) {
+          const fields=['kind','origin','title','content','scope','reference','relatedId','confidence','validity','claimKey','claimValue'];
+          if (Object.keys(input).some(k=>!fields.includes(k))) fail(400,'parameters','Champ de proposition inattendu.');
+          result=await core.knowledge.propose(actor,project,input);
+        } else if (uuid(id)) {
+          if (input.action==='edit') {
+            const optional = ['confidence','validity','claimKey','claimValue'].filter(k=>Object.hasOwn(input,k));
+            exactKeys(input,'version','action','title','content','scope',...optional);
+          }
+          else {
+            exactKeys(input,'version','action','confirm');
+            if (input.confirm!=='yes') fail(400,'confirmation','Confirmez la décision sur la révision affichée.');
+          }
+          result=await core.knowledge.revise(actor,project,id,input);
+        } else fail(404,'not_found','Fiche introuvable.');
+        if (api) json(res,id && id!=='import'?200:201,result);
+        else redirect(res,'/projects/'+project+'/knowledge/'+result.id);
+      } else fail(404,'not_found','Opération indisponible.');
+      return true;
+    }
+    const inspection = /^\/projects\/([^/]+)\/missions\/([^/]+)\/(report|pause|resume|relaunch)$/.exec(path);
+    if (inspection && uuid(inspection[2])) {
+      const project=projectId(inspection[1]), id=inspection[2], action=inspection[3];
+      if (get && action==='report') {
+        const mission=await core.getMission(actor,project,id);
+        res.setHeader('Content-Disposition','attachment; filename="studio-'+id+'.json"');
+        json(res,200,{format:'fjstudio-mission-v1',mission,quality:missionQuality(mission)});
+      } else if (post && action==='relaunch') {
+        const input=await body(req,api?'json':'form');
+        exactKeys(input,'confirm','commandKey');
+        if (input.confirm!=='yes' || !uuid(input.commandKey)) fail(400,'confirmation','Confirmez la nouvelle exécution.');
+        const source=await core.getMission(actor,project,id);
+        const result=await core.createMission(actor,project,source.fixtureId,input.commandKey,id);
+        if (api) json(res,201,result);
+        else redirect(res,'/projects/'+project+'/missions/'+result.id);
+      } else if (post && (action==='pause' || action==='resume')) {
+        exactKeys(await body(req,api?'json':'form'));
+        await core.setPaused(actor,project,id,action==='pause');
+        if (api) send(res,204);
+        else redirect(res,'/projects/'+project+'/missions/'+id);
+      } else fail(404,'not_found','Opération indisponible.');
+      return true;
+    }
+    return false;
+  }
+
   return createHttpServer({ requestTimeout: 10_000 }, async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -150,6 +242,7 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
           fail(404, 'not_found', 'Opération runner indisponible.');
         }
         if (auth.kind !== 'operator') fail(403, 'scope', 'Identité opérateur requise.');
+        if (await studioRoute(req,res,url,auth,true)) return;
         if (method === 'GET' && path === '/api/projects') {
           json(res, 200, { projects: await core.listProjects(auth) });
           return;
@@ -224,7 +317,8 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
         redirect(res, '/');
         return;
       }
-      if ((path === '/' || path === '/login') && method === 'GET') {
+      if (await studioRoute(req,res,url,actor,false)) return;
+      if (path === '/login' && method === 'GET') {
         const [first] = await core.listProjects(actor);
         if (!first) fail(404, 'not_found', 'Aucun projet accessible.');
         redirect(res, '/projects/' + first.id);
@@ -257,6 +351,8 @@ export function createServer(core: Core, credentials: readonly Credential[]): Se
           return;
         }
         if (method === 'POST' && uuid(mission) && route[3]) {
+          const confirmation = await body(req,'form');
+          if (confirmation.confirm !== 'yes') fail(400,'confirmation','Confirmez l’annulation de la mission.');
           await core.cancelMission(actor, project, mission);
           redirect(res, '/projects/' + project + '/missions/' + mission);
           return;

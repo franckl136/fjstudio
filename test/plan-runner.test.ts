@@ -88,6 +88,22 @@ test('the runner never submits a stale or corrupted assignment', async () => {
   }
 });
 
+test('un runtime qui atteint son échéance ne remet aucun résultat', async () => {
+  const assignment = {...assignmentForVerifier(),leaseUntil:new Date(Date.now()+150).toISOString()};
+  let requests = 0;
+  const fetchImpl: typeof fetch = async () => {
+    requests++;
+    return Response.json({assignment});
+  };
+  const runtime = { id:'test-delayed', async execute(_: Assignment, signal: AbortSignal) {
+    const {setTimeout} = await import('node:timers/promises');
+    await setTimeout(300,undefined,{signal});
+    return {};
+  }};
+  await assert.rejects(runOnce({baseUrl,token,fetchImpl,runtime}), /abort|expir/i);
+  assert.equal(requests,1);
+});
+
 test('the preparer refuses another project fixture even if the digest is valid', async () => {
   const input = getFixture('a', 'incorrect');
   const assignment: Assignment = {

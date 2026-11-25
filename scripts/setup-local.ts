@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { windowsPrivate } from './windows-private.ts';
 import { validPort } from '../src/config.ts';
 import type { Credential, ProjectId, Role } from '../src/contracts.ts';
 
@@ -19,14 +21,16 @@ for (const projectId of ['a', 'b'] as ProjectId[]) {
 }
 
 try {
-  writeFileSync('.env.local', [
+  const contents = [
     `POSTGRES_PASSWORD=${password}`,
     `A1_DB_PORT=${dbPort}`,
     `A1_PORT=${webPort}`,
     `DATABASE_URL=postgresql://fjstudio:${password}@127.0.0.1:${dbPort}/fjstudio_a1`,
     "A1_CREDENTIALS_JSON='" + JSON.stringify(credentials) + "'",
     '',
-  ].join('\n'), { flag: 'wx', mode: 0o600 });
+  ].join('\n');
+  if (process.platform === 'win32') windowsPrivate('PublishConfig', resolve('.env.local'), contents);
+  else writeFileSync('.env.local', contents, { flag: 'wx', mode: 0o600 });
   console.log('.env.local créé. Utilisez npm run access:local pour consulter la clé de connexion.');
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;

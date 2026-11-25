@@ -1,8 +1,13 @@
 import { digestJson, isFixtureId, isObject, isProjectId } from './contracts.ts';
-import type { FixtureId, JsonObject, ProjectId } from './contracts.ts';
+import type { Assignment, FixtureId, JsonObject, ProjectId } from './contracts.ts';
 
 export const PLAN_VERSION = 'a1-requirements-v1';
 export const RUBRIC_VERSION = 'a1-quality-v1';
+
+export const criteria = {
+  format: 'Format du livrable', provenance: 'Source et plan', requirements: 'Exigences de la source',
+  estimates: 'Bornes des estimations', total: 'Total des estimations',
+};
 
 export const PLAN: JsonObject = {
   version: PLAN_VERSION,
@@ -88,7 +93,7 @@ export function getFixture(projectId: ProjectId, fixtureId: FixtureId): JsonObje
   };
 }
 
-export function prepare(input: JsonObject): JsonObject {
+export function prepare(input: JsonObject, context: Assignment['context'] = []): JsonObject {
   const { projectId, fixtureId, requirements } = readSource(input);
   const ordered = requirements.map((row) => ({ ...row })).sort((a, b) => (
     a.id < b.id ? -1 : a.id > b.id ? 1 : 0
@@ -99,6 +104,7 @@ export function prepare(input: JsonObject): JsonObject {
     projectId,
     fixtureId,
     sourceDigest: digestJson(input),
+    ...(context.length ? { knowledgeReferences: context.map(entry => ({ id: entry.id, version: entry.version, digest: digestJson(entry) })) } : {}),
     requirements: ordered,
     totalMinutes: ordered.reduce((total, row) => total + row.minutes, 0),
   };
@@ -108,6 +114,14 @@ export function prepare(input: JsonObject): JsonObject {
 const MIN_MINUTES = 15;
 const MAX_MINUTES = 120;
 const MAX_TOTAL_MINUTES = 240;
+
+export const expectations: Record<keyof typeof criteria,string> = {
+  format: 'Livrable A1 typé, exigences structurées et total entier.',
+  provenance: 'Le projet, la fixture, la source et la version du plan correspondent à l’attribution.',
+  requirements: 'Chaque identifiant, titre et estimation reproduit les exigences de la source.',
+  estimates: `Chaque estimation est comprise entre ${MIN_MINUTES} et ${MAX_MINUTES} minutes.`,
+  total: `Le total déclaré est la somme des estimations et ne dépasse pas ${MAX_TOTAL_MINUTES} minutes.`,
+};
 
 type Check = { id: string; label: string; passed: boolean; detail: string };
 
@@ -130,27 +144,27 @@ export function verify(fixture: JsonObject, artifact: Readonly<JsonObject>): Jso
   const checks: Check[] = [
     {
       id: 'format',
-      label: 'Format du livrable',
+      label: criteria.format,
       passed: artifact.kind === 'a1-prepared-requirements-v1' && rows !== null &&
         Number.isSafeInteger(artifact.totalMinutes),
       detail: 'Livrable typé, liste d’exigences et total entier.',
     },
     {
       id: 'provenance',
-      label: 'Source et plan',
+      label: criteria.provenance,
       passed: artifact.planVersion === PLAN_VERSION && artifact.projectId === source.projectId &&
         artifact.fixtureId === source.fixtureId && artifact.sourceDigest === sourceDigest,
       detail: 'Projet, jeu synthétique, version du plan et empreinte de la source.',
     },
     {
       id: 'requirements',
-      label: 'Exigences de la source',
+      label: criteria.requirements,
       passed: matchingRows === true,
       detail: 'Une exigence par identifiant, avec le titre et l’estimation de la source.',
     },
     {
       id: 'estimates',
-      label: 'Bornes des estimations',
+      label: criteria.estimates,
       passed: rows !== null && invalidEstimates.length === 0,
       detail: invalidEstimates.length > 0
         ? invalidEstimates.map((row) => `${row.id} : ${row.minutes} min, attendu ${MIN_MINUTES}–${MAX_MINUTES} min.`).join(' ')
@@ -158,7 +172,7 @@ export function verify(fixture: JsonObject, artifact: Readonly<JsonObject>): Jso
     },
     {
       id: 'total',
-      label: 'Total des estimations',
+      label: criteria.total,
       passed: total !== undefined && artifact.totalMinutes === total && total <= MAX_TOTAL_MINUTES,
       detail: total === undefined
         ? 'Impossible de recalculer le total sans une liste valide.'

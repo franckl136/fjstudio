@@ -13,6 +13,11 @@ import {
   type Runner,
 } from './contracts.ts';
 import { PLAN, PLAN_VERSION, getFixture, prepare, verify } from './plan.ts';
+import { AppLab } from './app-lab.ts';
+import { Repositories, freezeRepository, readMissionRepository } from './repositories.ts';
+import { missionContract, requireCapability } from './agents.ts';
+import { transaction, notFound, assertProject, assertId } from './database.ts';
+import { Knowledge, contextSources, freezeContext, readContext } from './knowledge.ts';
 
 type MissionStatus = 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 type AttemptStatus = 'active' | 'completed' | 'expired' | 'cancelled';
@@ -37,6 +42,7 @@ interface MissionRow {
   lease_ms: number;
   created_at: Date;
   deadline_at: Date;
+  paused_at: Date | null;
 }
 
 interface StepRow {
@@ -57,6 +63,8 @@ interface AttemptRow {
 
 interface CheckpointRow {
   role: Role;
+  attempt_id: string;
+  created_at: Date;
   artifact: JsonObject;
   digest: string;
 }
@@ -75,33 +83,16 @@ interface CoreOptions {
 }
 
 const migrationDir = new URL('../migrations/', import.meta.url);
-const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-  readOnly = false,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
-    const result = await work(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // Keep the original failure if the connection has already been lost.
-    }
-    throw error;
-  } finally {
-    client.release();
-  }
+
+
+
+export async function migrationNames(): Promise<string[]> {
+  return (await readdir(migrationDir)).filter(name => /^\d+[-_].+\.sql$/.test(name)).sort();
 }
 
 export async function migrate(pool: Pool): Promise<void> {
-  const names = (await readdir(migrationDir)).filter((name) => /^\d+[-_].+\.sql$/.test(name)).sort();
+  const names = await migrationNames();
   await transaction(pool, async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(8442, 1)');
     await client.query(`
@@ -113,13 +104,16 @@ export async function migrate(pool: Pool): Promise<void> {
     `);
     for (const name of names) {
       const source = await readFile(new URL(name, migrationDir), 'utf8');
-      const digest = createHash('sha256').update(source).digest('hex');
+      const normalized = source.replaceAll('\r\n','\n');
+      const digest = createHash('sha256').update(normalized).digest('hex');
       const applied = (await client.query<{ digest: string }>(
         'SELECT digest FROM schema_migrations WHERE name = $1',
         [name],
       )).rows[0];
       if (applied) {
-        if (applied.digest !== digest) throw new Error(`Migration modifiée après application : ${name}`);
+        // A1 hashed the working tree bytes. Accept that historical Windows representation.
+        const windowsDigest = createHash('sha256').update(normalized.replaceAll('\n','\r\n')).digest('hex');
+        if (applied.digest !== digest && applied.digest !== windowsDigest) throw new Error(`Migration modifiée après application : ${name}`);
         continue;
       }
       await client.query(source);
@@ -135,24 +129,14 @@ function positiveInt(value: number, name: string): number {
   return value;
 }
 
-function notFound(): DomainError {
-  return new DomainError(404, 'not_found', 'Ressource introuvable.');
-}
 
-function assertProject(actor: Operator, projectId: ProjectId): void {
-  if (!actor.projectIds.includes(projectId)) throw notFound();
-}
-
-function assertId(id: string): void {
-  if (!uuid.test(id)) throw notFound();
-}
 
 function missionSummary(mission: MissionRow) {
   return {
     id: mission.id,
     projectId: mission.project_id,
     fixtureId: mission.fixture_id,
-    status: mission.status,
+    status: mission.paused_at ? 'paused' as const : mission.status,
     reason: mission.reason,
     planVersion: mission.plan_version,
     createdAt: mission.created_at.toISOString(),
@@ -195,6 +179,9 @@ async function preparerArtifact(client: PoolClient, mission: MissionRow): Promis
 }
 
 export class Core {
+  readonly knowledge: Knowledge;
+  readonly appLab: AppLab;
+  readonly repositories: Repositories;
   private pool: Pool;
   private leaseMs: number;
   private horizonMs: number;
@@ -202,6 +189,9 @@ export class Core {
 
   constructor(pool: Pool, options: CoreOptions = {}) {
     this.pool = pool;
+    this.knowledge = new Knowledge(pool);
+    this.appLab = new AppLab(pool);
+    this.repositories = new Repositories(pool);
     this.leaseMs = positiveInt(options.leaseMs ?? 30_000, 'leaseMs');
     this.horizonMs = positiveInt(options.horizonMs ?? 15 * 60_000, 'horizonMs');
     this.maxAttempts = positiveInt(options.maxAttempts ?? 3, 'maxAttempts');
@@ -217,7 +207,7 @@ export class Core {
 
   async getProject(actor: Operator, projectId: ProjectId) {
     assertProject(actor, projectId);
-    await this.sweepExpired(projectId);
+
     const project = (await this.pool.query<ProjectRow>(
       'SELECT id, name, context FROM projects WHERE id = $1',
       [projectId],
@@ -230,7 +220,7 @@ export class Core {
     return { ...project, missions: rows.map(missionSummary) };
   }
 
-  async createMission(actor: Operator, projectId: ProjectId, fixtureId: FixtureId, commandKey: string) {
+  async createMission(actor: Operator, projectId: ProjectId, fixtureId: FixtureId, commandKey: string, relaunchOf?: string) {
     assertProject(actor, projectId);
     if (fixtureId !== 'nominal' && fixtureId !== 'incorrect') {
       throw new DomainError(400, 'invalid_fixture', 'Choisir un jeu synthétique du catalogue.');
@@ -239,6 +229,13 @@ export class Core {
       throw new DomainError(400, 'invalid_command_key', 'Clé de commande invalide.');
     }
     return transaction(this.pool, async (client) => {
+      if (relaunchOf !== undefined) {
+        assertId(relaunchOf);
+        const parent = await lockMission(client, projectId, relaunchOf);
+        if (!['failed','cancelled'].includes(parent.status) || parent.fixture_id !== fixtureId) {
+          throw new DomainError(409,'relaunch_unavailable','Seule une mission échouée ou annulée peut être relancée avec la même fixture.');
+        }
+      }
       const id = randomUUID();
       const result = await client.query<MissionRow>(
         `WITH moment AS MATERIALIZED (SELECT clock_timestamp() AS now)
@@ -253,16 +250,18 @@ export class Core {
          RETURNING *`,
         [
           id, projectId, actor.id, commandKey, fixtureId, getFixture(projectId, fixtureId),
-          PLAN_VERSION, PLAN, this.maxAttempts, this.leaseMs, this.horizonMs,
+          PLAN_VERSION, { ...PLAN, execution: missionContract() }, this.maxAttempts, this.leaseMs, this.horizonMs,
         ],
       );
       const mission = result.rows[0];
       if (!mission) {
-        const prior = (await client.query<Pick<MissionRow, 'id' | 'fixture_id'>>(
-          'SELECT id, fixture_id FROM missions WHERE project_id = $1 AND created_by = $2 AND command_key = $3',
+        const prior = (await client.query<{id:string;fixture_id:FixtureId;parent:string|null}>(
+          `SELECT m.id,m.fixture_id,(SELECT details->>'relaunchOf' FROM mission_events e
+              WHERE e.project_id=m.project_id AND e.mission_id=m.id AND e.type='mission_created' LIMIT 1) AS parent
+            FROM missions m WHERE project_id=$1 AND created_by=$2 AND command_key=$3`,
           [projectId, actor.id, commandKey],
         )).rows[0];
-        if (!prior || prior.fixture_id !== fixtureId) {
+        if (!prior || prior.fixture_id !== fixtureId || (prior.parent ?? undefined) !== relaunchOf) {
           throw new DomainError(409, 'command_conflict', 'Cette clé est déjà liée à une autre demande.');
         }
         return { id: prior.id };
@@ -272,7 +271,9 @@ export class Core {
          VALUES ($1, $2, 'preparer', 'ready'), ($1, $2, 'verifier', 'waiting')`,
         [projectId, id],
       );
-      await recordEvent(client, mission, 'mission_created', null, { fixtureId, planVersion: PLAN_VERSION });
+      await freezeContext(client, projectId, id, fixtureId);
+      await freezeRepository(client, projectId, id);
+      await recordEvent(client, mission, 'mission_created', null, { fixtureId, planVersion: PLAN_VERSION, operatorId: actor.id, ...(relaunchOf ? { relaunchOf } : {}) });
       await recordEvent(client, mission, 'step_ready', 'preparer');
       return { id };
     });
@@ -281,7 +282,7 @@ export class Core {
   async getMission(actor: Operator, projectId: ProjectId, missionId: string) {
     assertProject(actor, projectId);
     assertId(missionId);
-    await this.sweepExpired(projectId, missionId);
+
     return transaction(this.pool, async (client) => {
       const key = [projectId, missionId];
       const mission = (await client.query<MissionRow>(
@@ -298,7 +299,7 @@ export class Core {
         key,
       );
       const { rows: checkpoints } = await client.query<CheckpointRow>(
-        'SELECT role, artifact, digest FROM checkpoints WHERE project_id = $1 AND mission_id = $2',
+        'SELECT role, artifact, digest, attempt_id, created_at FROM checkpoints WHERE project_id = $1 AND mission_id = $2',
         key,
       );
       const { rows: events } = await client.query<EventRow>(
@@ -308,6 +309,9 @@ export class Core {
       return {
         ...missionSummary(mission),
         plan: mission.plan,
+        context: await readContext(client, projectId, missionId),
+        contextSources: await contextSources(client, projectId, missionId),
+        repository: await readMissionRepository(client, projectId, missionId),
         steps: steps.map(({ role, status }) => {
           const checkpoint = checkpoints.find((item) => item.role === role);
           return {
@@ -320,7 +324,7 @@ export class Core {
               runnerId: attempt.runner_id,
               leaseUntil: attempt.lease_until.toISOString(),
             })),
-            checkpoint: checkpoint ? { artifact: checkpoint.artifact, digest: checkpoint.digest } : null,
+            checkpoint: checkpoint ? { artifact: checkpoint.artifact, digest: checkpoint.digest, recordedAt: checkpoint.created_at.toISOString(), attemptId: checkpoint.attempt_id } : null,
           };
         }),
         events: events.map((event) => ({
@@ -334,13 +338,17 @@ export class Core {
   }
 
   async claim(runner: Runner): Promise<Assignment | null> {
+    requireCapability(runner.role,'assignment.claim');
+    await this.pool.query(`INSERT INTO runner_contacts(project_id,runner_id,role,last_seen) VALUES ($1,$2,$3,clock_timestamp())
+      ON CONFLICT(project_id,runner_id) DO UPDATE SET last_seen=excluded.last_seen,role=excluded.role
+      WHERE runner_contacts.last_seen < now() - interval '5 seconds'`,[runner.projectId,runner.id,runner.role]);
     await this.sweepExpired(runner.projectId);
     return transaction(this.pool, async (client) => {
       const mission = (await client.query<MissionRow>(
         `SELECT m.* FROM missions m
          JOIN steps s ON s.project_id = m.project_id AND s.mission_id = m.id
          WHERE m.project_id = $1 AND s.role = $2 AND m.plan_version = $3 AND s.status = 'ready'
-           AND m.status IN ('ready', 'running') AND m.deadline_at > clock_timestamp()
+           AND m.status IN ('ready', 'running') AND m.paused_at IS NULL AND m.deadline_at > clock_timestamp()
          ORDER BY m.created_at, m.id
          LIMIT 1 FOR UPDATE OF m SKIP LOCKED`,
         [runner.projectId, runner.role, PLAN_VERSION],
@@ -363,7 +371,7 @@ export class Core {
                 LEAST(m.deadline_at, now + m.lease_ms * interval '1 millisecond')
          FROM missions m CROSS JOIN moment
          WHERE m.project_id = $2 AND m.id = $3
-           AND m.status IN ('ready', 'running') AND m.deadline_at > now
+           AND m.status IN ('ready', 'running') AND m.paused_at IS NULL AND m.deadline_at > now
          RETURNING lease_until`,
         [attemptId, runner.projectId, mission.id, runner.role, generation, runner.id],
       )).rows[0];
@@ -377,7 +385,7 @@ export class Core {
         "UPDATE missions SET status = 'running', reason = NULL WHERE project_id = $1 AND id = $2",
         [runner.projectId, mission.id],
       );
-      await recordEvent(client, mission, 'attempt_claimed', runner.role, { attemptId, generation });
+      await recordEvent(client, mission, 'attempt_claimed', runner.role, { attemptId, generation, runnerId: runner.id });
       return {
         attemptId,
         generation,
@@ -388,6 +396,7 @@ export class Core {
         leaseUntil: attempt.lease_until.toISOString(),
         input,
         inputDigest: digestJson(input),
+        context: await readContext(client, runner.projectId, mission.id),
         planVersion: mission.plan_version,
       };
     });
@@ -423,8 +432,10 @@ export class Core {
       if (finish.rowCount !== 1) {
         throw new DomainError(409, 'stale_attempt', 'Le bail ou l’horizon de cette tentative est expiré.');
       }
+      requireCapability(runner.role,'checkpoint.submit');
+      requireCapability(runner.role, step.role === 'preparer' ? 'artifact.prepare' : 'artifact.verify');
       const expected = runner.role === 'preparer'
-        ? prepare(mission.fixture)
+        ? prepare(mission.fixture, await readContext(client, runner.projectId, mission.id))
         : verify(mission.fixture, await preparerArtifact(client, mission));
       const digest = digestJson(expected);
       if (digestJson(result) !== digest) {
@@ -442,7 +453,7 @@ export class Core {
         'UPDATE steps SET status = $4 WHERE project_id = $1 AND mission_id = $2 AND role = $3',
         [...key, finalStatus],
       );
-      await recordEvent(client, mission, 'checkpoint_saved', runner.role, { attemptId, digest });
+      await recordEvent(client, mission, 'checkpoint_saved', runner.role, { attemptId, digest, runnerId: runner.id });
       if (runner.role === 'preparer') {
         await client.query(
           "UPDATE steps SET status = 'ready' WHERE project_id = $1 AND mission_id = $2 AND role = 'verifier' AND status = 'waiting'",
@@ -484,18 +495,84 @@ export class Core {
         key,
       );
       await client.query(
-        "UPDATE missions SET status = 'cancelled', reason = 'operator_cancelled' WHERE project_id = $1 AND id = $2",
+        "UPDATE missions SET status = 'cancelled', paused_at=NULL, reason = 'operator_cancelled' WHERE project_id = $1 AND id = $2",
         key,
       );
       await recordEvent(client, mission, 'mission_cancelled', null, { operatorId: actor.id });
     });
   }
 
+  async setPaused(actor: Operator, project: ProjectId, id: string, paused: boolean) {
+    assertProject(actor,project);
+    assertId(id);
+    await transaction(this.pool,async client => {
+      const mission = await lockMission(client,project,id);
+      if (!['ready','running'].includes(mission.status) || Boolean(mission.paused_at) === paused) {
+        throw new DomainError(409,'transition','Cette transition ne correspond plus à l’état de la mission.');
+      }
+      if (paused) {
+        const result = await client.query(`UPDATE missions m SET paused_at=clock_timestamp()
+          WHERE m.project_id=$1 AND m.id=$2 AND m.deadline_at>clock_timestamp() AND NOT EXISTS
+          (SELECT 1 FROM attempts WHERE project_id=$1 AND mission_id=$2 AND status='active')`,[project,id]);
+        if (!result.rowCount) throw new DomainError(409,'pause_unavailable','La suspension exige une mission dans son horizon et sans tentative active.');
+      } else {
+        await client.query(`UPDATE missions SET deadline_at=deadline_at+(clock_timestamp()-paused_at),paused_at=NULL
+          WHERE project_id=$1 AND id=$2`,[project,id]);
+      }
+      await recordEvent(client,mission,paused?'mission_paused':'mission_resumed',null,{operatorId:actor.id});
+    });
+  }
+
+  async agentActivity(actor: Operator) {
+    return (await this.pool.query<{
+      project_id:ProjectId; runner_id:string; role:Role; last_seen:Date|null; fresh:boolean;
+      mission_id:string|null; attempts:number; completed:number;
+    }>(`WITH identities AS (
+          SELECT project_id,runner_id,role FROM runner_contacts WHERE project_id=ANY($1)
+          UNION SELECT project_id,runner_id,role FROM attempts WHERE project_id=ANY($1)
+        )
+        SELECT i.project_id,i.runner_id,i.role,c.last_seen,
+          COALESCE(c.last_seen > now()-interval '20 seconds',false) AS fresh,
+          (array_agg(a.mission_id ORDER BY a.started_at DESC)
+            FILTER (WHERE a.status='active' AND a.lease_until>now()))[1] AS mission_id,
+          count(a.id)::int AS attempts,
+          count(a.id) FILTER (WHERE a.status='completed')::int AS completed
+        FROM identities i LEFT JOIN runner_contacts c USING(project_id,runner_id,role)
+        LEFT JOIN attempts a USING(project_id,runner_id,role)
+        GROUP BY i.project_id,i.runner_id,i.role,c.last_seen
+        ORDER BY i.project_id,i.runner_id`,[actor.projectIds])).rows;
+  }
+
+  async overview(actor: Operator) {
+    return transaction(this.pool,async client => {
+      const args = [actor.projectIds];
+      const projects = (await client.query<ProjectRow>('SELECT * FROM projects WHERE id=ANY($1) ORDER BY id',args)).rows;
+      const counts = (await client.query<{status:string;count:number}>(`SELECT CASE WHEN paused_at IS NOT NULL THEN 'paused' ELSE status END AS status,
+        count(*)::int AS count FROM missions WHERE project_id=ANY($1) GROUP BY 1`,args)).rows;
+      const recent = (await client.query<MissionRow>(`SELECT * FROM missions WHERE project_id=ANY($1)
+        ORDER BY (status IN ('ready','running')) DESC, created_at DESC,id LIMIT 24`,args)).rows.map(missionSummary);
+      const events = (await client.query<EventRow & {mission_id:string;project_id:ProjectId}>(`SELECT project_id,mission_id,type,role,at
+        FROM mission_events WHERE project_id=ANY($1) ORDER BY id DESC LIMIT 24`,args)).rows;
+      const contacts = (await client.query<{project_id: ProjectId;runner_id:string;role:Role;last_seen:Date;fresh:boolean;mission_id:string|null}>(`SELECT r.*,
+        r.last_seen > clock_timestamp()-interval '20 seconds' AS fresh,
+        (SELECT a.mission_id FROM attempts a WHERE a.project_id=r.project_id AND a.runner_id=r.runner_id
+          AND a.status='active' AND a.lease_until>clock_timestamp() ORDER BY started_at DESC LIMIT 1) AS mission_id
+        FROM runner_contacts r WHERE r.project_id=ANY($1) ORDER BY r.project_id,r.role,r.runner_id`,args)).rows;
+      const proposals = (await client.query<{project_id:ProjectId;count:number}>(`SELECT project_id,count(*)::int AS count FROM knowledge_current
+        WHERE project_id=ANY($1) AND status='proposed' GROUP BY project_id ORDER BY project_id`,args)).rows;
+      const failures = (await client.query<MissionRow>(`SELECT * FROM missions WHERE project_id=ANY($1)
+        AND status='failed' ORDER BY created_at DESC,id LIMIT 8`,args)).rows.map(missionSummary);
+      const conflicts = (await client.query<{project_id:ProjectId;first_id:string;first_title:string}>(`SELECT project_id,first_id,first_title
+        FROM knowledge_disagreements WHERE project_id=ANY($1) ORDER BY project_id,first_id,second_id LIMIT 12`,args)).rows;
+      return {projects,counts,recent,events,contacts,proposals,failures,conflicts};
+    },true);
+  }
+
   async sweepExpired(projectId?: ProjectId, missionId?: string): Promise<void> {
     await transaction(this.pool, async (client) => {
       const { rows } = await client.query<MissionRow>(
         `SELECT m.* FROM missions m
-         WHERE m.status IN ('ready', 'running') AND ($1::text IS NULL OR m.project_id = $1)
+         WHERE m.status IN ('ready', 'running') AND m.paused_at IS NULL AND ($1::text IS NULL OR m.project_id = $1)
            AND ($2::uuid IS NULL OR m.id = $2)
            AND (m.deadline_at <= clock_timestamp() OR EXISTS (
              SELECT 1 FROM attempts a
@@ -513,7 +590,7 @@ export class Core {
   async recoverRestoredState(): Promise<void> {
     await transaction(this.pool, async (client) => {
       const { rows } = await client.query<MissionRow>(
-        "SELECT * FROM missions WHERE status IN ('ready', 'running') ORDER BY id FOR UPDATE",
+        "SELECT * FROM missions WHERE status IN ('ready', 'running') AND paused_at IS NULL ORDER BY id FOR UPDATE",
       );
       for (const mission of rows) await this.expireLocked(client, mission, true);
     });

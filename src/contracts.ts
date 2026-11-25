@@ -20,6 +20,7 @@ export type Assignment = {
   leaseUntil: string;
   input: JsonObject;
   inputDigest: string;
+  context?: { id: string; projectId: ProjectId; version: number; title: string; content: string }[];
   planVersion: string;
 };
 

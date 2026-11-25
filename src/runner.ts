@@ -1,11 +1,13 @@
 import { digestJson, isFixtureId, isObject, isProjectId } from './contracts.ts';
-import type { Assignment, JsonObject } from './contracts.ts';
-import { getFixture, PLAN_VERSION, prepare, verify } from './plan.ts';
+import type { Assignment } from './contracts.ts';
+import { PLAN_VERSION } from './plan.ts';
+import { deterministicRuntime, type AgentRuntime } from './agent-runtime.ts';
 
 type RunnerOptions = {
   baseUrl: string;
   token: string;
   fetchImpl?: typeof fetch;
+  runtime?: AgentRuntime;
 };
 
 function localOrigin(baseUrl: string): string {
@@ -32,20 +34,30 @@ function readAssignment(value: unknown): Assignment {
       typeof value.inputDigest !== 'string' || digestJson(value.input) !== value.inputDigest) {
     throw new Error('Attribution A1 invalide.');
   }
+  if (value.context !== undefined && (!Array.isArray(value.context) || value.context.length > 5 ||
+      !value.context.every(entry => isObject(entry) && entry.projectId === value.projectId &&
+        typeof entry.id === 'string' && typeof entry.version === 'number' && Number.isSafeInteger(entry.version) &&
+        entry.version > 0 && typeof entry.title === 'string' && typeof entry.content === 'string'))) {
+    throw new Error('Contexte de mission invalide.');
+  }
   return value as Assignment;
+}
+
+export function assertDirectHttp() {
+  if (process.env.NODE_USE_ENV_PROXY === '1' || process.execArgv.includes('--use-env-proxy') ||
+      process.env.NODE_OPTIONS?.includes('--use-env-proxy')) {
+    throw new Error('Le profil local exige une connexion sans proxy.');
+  }
 }
 
 export async function runOnce({
   baseUrl,
   token,
   fetchImpl = fetch,
+  runtime = deterministicRuntime,
 }: RunnerOptions): Promise<boolean> {
   const origin = localOrigin(baseUrl);
-  if (fetchImpl === fetch && (process.env.NODE_USE_ENV_PROXY === '1' ||
-      process.execArgv.includes('--use-env-proxy') ||
-      process.env.NODE_OPTIONS?.includes('--use-env-proxy'))) {
-    throw new Error('Le runner A1 exige une connexion locale sans proxy.');
-  }
+  if (fetchImpl === fetch) assertDirectHttp();
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
   const claim = await fetchImpl(`${origin}/api/runner/claim`, {
     method: 'POST',
@@ -62,16 +74,9 @@ export async function runOnce({
   const assignment = readAssignment(payload.assignment);
   const deadline = Date.parse(assignment.leaseUntil);
   if (deadline <= Date.now()) throw new Error('Le bail a expiré avant l’exécution.');
-  const fixture = getFixture(assignment.projectId, assignment.fixtureId);
-  let result: JsonObject;
-  if (assignment.role === 'preparer') {
-    if (digestJson(fixture) !== assignment.inputDigest) {
-      throw new Error('La source du préparateur ne correspond pas au jeu synthétique autorisé.');
-    }
-    result = prepare(assignment.input);
-  } else {
-    result = verify(fixture, assignment.input);
-  }
+  const signal = AbortSignal.timeout(Math.max(1,Math.min(deadline-Date.now(),12_000)));
+  const result = await runtime.execute(assignment,signal);
+  signal.throwIfAborted();
   const remaining = deadline - Date.now();
   if (remaining <= 0) throw new Error('Le bail a expiré avant la remise.');
 

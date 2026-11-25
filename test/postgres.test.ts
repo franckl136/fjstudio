@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,7 +15,9 @@ import { composeDatabaseUrl } from "../scripts/postgres-tools.ts";
 import { createPool } from "../src/config.ts";
 import type { Assignment, Credential, FixtureId, ProjectId } from "../src/contracts.ts";
 import { digestJson } from "../src/contracts.ts";
-import { Core, migrate } from "../src/core.ts";
+import { deterministicRuntime } from "../src/agent-runtime.ts";
+import { capabilityLabels, requireCapability, type Capability } from "../src/agents.ts";
+import { Core, migrate, migrationNames } from "../src/core.ts";
 import { createServer } from "../src/http.ts";
 import { getFixture, prepare, verify } from "../src/plan.ts";
 import { runOnce } from "../src/runner.ts";
@@ -215,6 +217,49 @@ test("mission nominale, checkpoints et verdict indépendant réellement persist�
   assert.equal(mission.mission.id, missionId);
   assert.equal(mission.mission.status, "succeeded");
   assert(observed.filter(path => path.endsWith("/complete")).length === 2);
+});
+
+test("G4.3 · rôles bornés, runtime substituable et historique conservé après perte des contacts", async t => {
+  const { baseUrl } = await startStudio(t);
+  const missionId = await createMission(baseUrl);
+  const controlRoom = async () => (await responseJson<{agents: {
+    id:string; project:string; capabilities:Capability[]; activity:{attempts:number;completed:number;last_seen:string|null}|null;
+  }[]}>(await request(baseUrl,"/api/agents",lead),200)).agents;
+  const initial = await controlRoom();
+  assert(initial.every(agent=>agent.project==="a" && !("token" in agent)));
+  assert(initial.every(agent=>agent.activity===null));
+  assert.equal((await request(baseUrl,"/api/agents","preparer-a")).status,403);
+  for (const role of ["preparer","verifier"] as const) {
+    const profile = initial.find(agent=>agent.id===role+"-a")!;
+    for (const key of Object.keys(capabilityLabels) as Capability[]) {
+      if (profile.capabilities.includes(key)) requireCapability(role,key);
+      else assert.throws(()=>requireCapability(role,key));
+    }
+  }
+  assert.equal(await claim(baseUrl,"verifier-a"),null);
+  let invoked = false;
+  await runOnce({baseUrl,token:tokenFor("preparer-a"),runtime:{
+    id:"test-local", execute(assignment,signal) {
+      invoked=true;
+      assert.equal(assignment.missionId,missionId);
+      assert.equal(assignment.role,"preparer");
+      assert(!("token" in assignment));
+      return deterministicRuntime.execute(assignment,signal);
+    },
+  }});
+  assert(invoked);
+  await runOnce({baseUrl,token:tokenFor("verifier-a")});
+  assert.equal((await persisted(missionId)).mission.status,"succeeded");
+  const plan=(await db.query("SELECT plan FROM missions WHERE id=$1",[missionId])).rows[0].plan;
+  assert.equal(plan.execution.costCeilingCents,0);
+  assert.equal(plan.execution.version,"studio-trusted-v1");
+  await db.query("DELETE FROM runner_contacts");
+  const recovered = await controlRoom();
+  for (const id of ["preparer-a","verifier-a"]) {
+    const activity = recovered.find(agent=>agent.id===id)?.activity;
+    assert.equal(activity?.completed,1);
+    assert.equal(activity?.last_seen,null);
+  }
 });
 
 test("une fixture incorrecte produit un véritable échec documenté", async t => {
@@ -431,6 +476,10 @@ test("accès croisés et utilisations de rôles interdits refusés", async t => 
 
 test("sauvegarder puis restaurer dans une base vierge préserve les preuves et retire les anciens baux", async t => {
   const { baseUrl } = await startStudio(t);
+  const library = new Core(db).knowledge;
+  const actor = {id:lead,projectIds:["a"] as const};
+  const item = await library.propose(actor,"a",{kind:"document",origin:"observed",title:"Note de restauration",content:"Fiche synthétique",scope:"nominal"});
+  await library.revise(actor,"a",item.id,{action:"validate",version:1});
   const finishedId = await createMission(baseUrl);
   assert(await runOnce({ baseUrl, token: tokenFor("preparer-a") }));
   assert(await runOnce({ baseUrl, token: tokenFor("verifier-a") }));
@@ -439,7 +488,8 @@ test("sauvegarder puis restaurer dans une base vierge préserve les preuves et r
   const old = await claim(baseUrl, "preparer-a");
   assert(old);
   assert.equal(old.missionId, runningId);
-  await noContent(await complete(baseUrl, "preparer-a", old, prepare(old.input)));
+  assert.equal((await complete(baseUrl,"preparer-a",old,prepare(old.input))).status,422);
+  await noContent(await complete(baseUrl, "preparer-a", old, prepare(old.input,old.context)));
   const victim = await claim(baseUrl, "verifier-a");
   assert(victim);
   assert.equal(victim.missionId, runningId);
@@ -460,6 +510,12 @@ test("sauvegarder puis restaurer dans une base vierge préserve les preuves et r
   assert(archiveInfo.size > 0);
   if (process.platform !== "win32") assert.equal(archiveInfo.mode & 0o077, 0);
   await assert.rejects(command(process.execPath, backupArgs, commandOptions), /EEXIST/);
+  const metadata = await readFile(archive+".json","utf8");
+  assert.equal(JSON.parse(metadata).bytes,archiveInfo.size);
+  await writeFile(archive+".json",metadata.replace(/"sha256": "[a-f0-9]+"/,'"sha256": "incorrect"'));
+  await assert.rejects(command(process.execPath, restoreArgs, commandOptions),/Intégrité/);
+  assert.equal((await admin.query("SELECT 1 FROM pg_database WHERE datname=$1",[restoreTarget])).rowCount,0);
+  await writeFile(archive+".json",metadata);
 
   try {
     await command(process.execPath, restoreArgs, commandOptions);
@@ -477,6 +533,10 @@ test("sauvegarder puis restaurer dans une base vierge préserve les preuves et r
   t.after(() => targetPool.end());
 
   assert.deepEqual(await persisted(finishedId, targetPool), finished);
+  const receipt=(await targetPool.query("SELECT * FROM restore_receipts WHERE target=$1",[restoreTarget])).rows[0];
+  assert.equal(receipt.archive_sha256,JSON.parse(metadata).sha256);
+  assert.deepEqual(await new Core(targetPool).knowledge.detail(actor,"a",item.id),await library.detail(actor,"a",item.id));
+  assert.equal((await new Core(targetPool).getMission(actor,"a",finishedId)).context[0].version,2);
   const restoredHalf = await persisted(runningId, targetPool);
   assert.deepEqual(restoredHalf.checkpoints, sourceHalf.checkpoints);
   assert.equal(restoredHalf.attempts.find(row => row.id === victim.attemptId).status, "expired");
@@ -488,6 +548,197 @@ test("sauvegarder puis restaurer dans une base vierge préserve les preuves et r
   assert(await runOnce({ baseUrl: resumed.baseUrl, token: tokenFor("verifier-a") }));
   assert.equal((await persisted(runningId, targetPool)).mission.status, "succeeded");
   assert.equal((await persisted(runningId)).mission.status, sourceHalf.mission.status);
+});
+
+const proposal = {kind:"rule",origin:"agent",title:"Durée synthétique",confidence:"medium",validity:"Plan A1",content:"Note du préparateur A.",scope:"nominal",reference:"Proposition synthétique S-17"};
+test("G3 · provenance, recherche, révisions concurrentes, arbitrage et retrait", async t => {
+  const {baseUrl}=await startStudio(t);
+  const root="/api/projects/a/knowledge";
+  const created=await responseJson<{id:string}>(await request(baseUrl,root,lead,proposal),201);
+  const path=root+"/"+created.id;
+  const decide=(action:string,version:number)=>request(baseUrl,path,lead,{action,version,confirm:"yes"});
+  const first=(await (await request(baseUrl,path,lead)).json()).item;
+  assert.equal(first.status,"proposed"); assert.equal(first.author,lead); assert.equal(first.origin,"agent");
+  assert.equal(first.reference,proposal.reference);
+  assert.equal(first.confidence,"medium"); assert.equal(first.validity,"Plan A1");
+  assert.equal((await request(baseUrl,path,lead,{action:"validate",version:1})).status,400);
+  const outcomes=await Promise.all([decide("validate",1),decide("validate",1)]);
+  assert.deepEqual(outcomes.map(x=>x.status).sort(),[200,409]);
+  assert.equal((await (await request(baseUrl,root+"?q=S-17&kind=rule&status=validated",lead)).json()).items.length,1);
+  assert.equal((await request(baseUrl,path,lead,{action:"edit",version:2,title:"Révisée",content:"Règle révisée",scope:"both"})).status,200);
+  assert.equal((await decide("reject",3)).status,200);
+  assert.equal((await decide("validate",4)).status,409);
+  assert.equal((await request(baseUrl,path,lead,{action:"edit",version:4,title:"Finale",content:"Référence test",scope:"both"})).status,200);
+  assert.equal((await decide("validate",5)).status,200);
+  assert.equal((await decide("obsolete",6)).status,200);
+  assert.equal((await decide("revoke",7)).status,200);
+  assert.equal((await decide("validate",8)).status,409);
+  const detail=await (await request(baseUrl,path,lead)).json();
+  assert.equal(detail.history.length,8); assert.equal(detail.item.status,"revoked"); assert.equal(detail.history.at(-1).content,proposal.content);
+  assert.equal((await (await request(baseUrl,root+"?q=Finale&status=validated",lead)).json()).items.length,0);
+});
+
+test("G3.2 · désaccord entre révisions, recherche française, sources figées et cloisonnement", async t => {
+  const {baseUrl} = await startStudio(t);
+  const core = new Core(db);
+  const actor = {id: lead, projectIds: ["a"] as const};
+  const base = { ...proposal, title:"Seuil des réservations", content:"Les réservations sont plafonnées.",
+    claimKey:"durée maximale", claimValue:"60 minutes", validity:"A1" };
+  const first = await core.knowledge.propose(actor,"a",base);
+  await core.knowledge.revise(actor,"a",first.id,{action:"validate",version:1});
+  const second = await core.knowledge.propose(actor,"a",{...base,claimValue:"90 minutes",relatedId:first.id});
+  const conflicts = (await core.knowledge.detail(actor,"a",first.id)).conflicts;
+  assert.equal(conflicts.length,1);
+  assert.equal(conflicts[0].reason,"assertion");
+  assert.equal((await core.knowledge.detail(actor,"a",second.id)).item.status,"proposed");
+  const search = await core.knowledge.list(actor,"a","réservation plafonner","","","agent",first.id);
+  assert.deepEqual(search.map(r=>r.id),[second.id]);
+  await assert.rejects(core.knowledge.detail(actor,"b",first.id),{status:404});
+  await assert.rejects(core.knowledge.propose(actor,"a",{...base,claimKey:""}),{status:400});
+  const mission = await createMission(baseUrl);
+  const original = await core.getMission(actor,"a",mission);
+  assert.equal(original.contextSources[0].origin,"agent");
+  assert.equal(original.contextSources[0].status,"validated");
+  assert(original.contextSources[0].selected_at instanceof Date);
+  await core.knowledge.revise(actor,"a",first.id,{action:"revoke",version:2});
+  assert.equal((await core.knowledge.detail(actor,"a",second.id)).conflicts.length,0);
+  assert.deepEqual((await core.getMission(actor,"a",mission)).contextSources,original.contextSources);
+  await core.knowledge.revise(actor,"a",second.id,{action:"validate",version:1});
+  const oldMission = await createMission(baseUrl);
+  await core.knowledge.revise(actor,"a",second.id,{
+    action:"edit",version:2,title:base.title,content:"Règle révisée.",scope:"both",claimValue:"100 minutes",
+  });
+  const pendingMission = await createMission(baseUrl);
+  assert.equal((await core.getMission(actor,"a",pendingMission)).context.length,0);
+  await core.knowledge.revise(actor,"a",second.id,{action:"validate",version:3});
+  const newMission = await createMission(baseUrl);
+  assert.equal((await core.getMission(actor,"a",oldMission)).context[0].version,2);
+  const revised = (await core.getMission(actor,"a",newMission)).context[0];
+  assert.equal(revised.version,4);
+  assert.equal(revised.content,"Règle révisée.");
+});
+
+test("G3 · contexte borné et figé, révocation et preuves du runner réel", async t => {
+  const {baseUrl}=await startStudio(t);
+  const core=new Core(db), actor={id:lead,projectIds:["a"] as const};
+  const eligible:string[]=[];
+  for (let i=0;i<7;i++) {
+    const {id}=await core.knowledge.propose(actor,"a",{...proposal,title:"Fiche "+i,scope:i===0?"both":"nominal"});
+    await core.knowledge.revise(actor,"a",id,{action:"validate",version:1}); eligible.push(id);
+  }
+  await core.knowledge.propose(actor,"a",{...proposal, title:"Proposition non admissible"});
+  const id=await createMission(baseUrl);
+  const initial=(await core.getMission(actor,"a",id)).context;
+  assert.equal(initial.length,5);
+  assert.deepEqual(initial.map(x=>x.id).sort(),eligible.slice(-5).sort());
+  const revoked=initial[0].id;
+  await core.knowledge.revise(actor,"a",revoked,{action:"revoke",version:2});
+  const next=await createMission(baseUrl);
+  assert(!(await core.getMission(actor,"a",next)).context.some(x=>x.id===revoked));
+  assert.deepEqual((await core.getMission(actor,"a",id)).context,initial);
+  assert.deepEqual((await core.knowledge.detail(actor,"a",revoked)).uses,[{mission_id:id,version:2}]);
+  assert(await runOnce({baseUrl,token:tokenFor("preparer-a")}));
+  assert(await runOnce({baseUrl,token:tokenFor("verifier-a")}));
+  const report=await (await request(baseUrl,"/api/projects/a/missions/"+id+"/report",lead)).json();
+  assert.equal(report.mission.status,"succeeded"); assert.equal(report.mission.steps[0].checkpoint.artifact.knowledgeReferences.length,5);
+  assert(report.quality.checks.every((c:{state:string;expected:string})=>c.state==="passed" && c.expected.length>0));
+  assert.equal(report.quality.runnerId,"verifier-a");
+  assert.equal(report.quality.evidence.sha256, report.mission.steps[1].checkpoint.digest);
+  assert.equal(report.quality.evidence.candidateSha256, report.mission.steps[0].checkpoint.digest);
+  assert(Number.isFinite(Date.parse(report.quality.recordedAt)));
+});
+
+test("G3 · cloisonnement serveur des fiches, relations, import, contexte, export et journaux", async t => {
+  const {baseUrl}=await startStudio(t);
+  const a="/api/projects/a/knowledge", b="/api/projects/b/knowledge";
+  const foreign=await responseJson<{id:string}>(await request(baseUrl,b,"operator-b",{...proposal,content:"MARQUEUR_PROJET_B"}),201);
+  assert.equal((await request(baseUrl,b+"/"+foreign.id,lead)).status,404);
+  assert.equal((await request(baseUrl,a+"/"+foreign.id,lead)).status,404);
+  assert.equal((await request(baseUrl,b+"/"+foreign.id,lead,{action:"validate",version:1,confirm:"yes"})).status,404);
+  assert.equal((await request(baseUrl,a,lead,{...proposal,relatedId:foreign.id})).status,404);
+  assert.equal((await request(baseUrl,b+"/import",lead,{})).status,404);
+  assert.equal((await request(baseUrl,a+"/import",lead,{path:"../b.md"})).status,400);
+  const imported=await responseJson<{id:string}>(await request(baseUrl,a+"/import",lead,{}),201);
+  assert.deepEqual(await responseJson(await request(baseUrl,a+"/import",lead,{}),201),imported);
+  assert.equal((await request(baseUrl,a,lead,{...proposal,origin:"imported"})).status,400);
+  const source=await (await request(baseUrl,a+"/"+imported.id,lead)).json();
+  assert.match(source.item.reference,/docs\/projects\/a\.md · Git [a-f0-9]+ · SHA-256 [a-f0-9]+/);
+  assert.equal((await request(baseUrl,a,"preparer-a",proposal)).status,403);
+  const mission=await createMission(baseUrl);
+  const other=await createMission(baseUrl,"b");
+  assert.equal((await request(baseUrl,"/api/projects/a/missions/"+other+"/report",lead)).status,404);
+  assert.equal((await request(baseUrl,"/api/projects/b/missions/"+other+"/report",lead)).status,404);
+  assert.equal((await request(baseUrl,"/api/projects/a/missions",lead,{fixtureId:"nominal",commandKey:"unexpected",context:[foreign.id]})).status,400);
+  await assert.rejects(db.query("INSERT INTO mission_context VALUES ('a',$1,$2,1)",[mission,foreign.id]),{code:"23503"});
+  for (const path of [a+"?q=MARQUEUR_PROJET_B","/api/command","/api/projects/a/missions/"+mission+"/report"]) {
+    const text=await (await request(baseUrl,path,lead)).text();
+    for (const secret of ["MARQUEUR_PROJET_B",foreign.id,other,tokenFor(lead)]) assert(!text.includes(secret));
+  }
+  const log=t.mock.method(console,"error",()=>{});
+  await db.query("ALTER TABLE checkpoints RENAME TO unavailable_checkpoints");
+  const failed=await request(baseUrl,"/api/projects/a/missions/"+mission+"/report",lead);
+  assert.equal(failed.status,503);
+  const recorded=JSON.stringify(log.mock.calls.map(c=>c.arguments));
+  assert.match(recorded,/42P01/);
+  for (const secret of [tokenFor(lead),foreign.id,"MARQUEUR_PROJET_B",connectionString]) assert(!recorded.includes(secret));
+});
+
+test("G3 · pause aux frontières de checkpoint, reprise et inspection sans écriture", async t => {
+  const {baseUrl}=await startStudio(t);
+  const id=await createMission(baseUrl), path="/api/projects/a/missions/"+id;
+  const change=(action:string)=>request(baseUrl,path+"/"+action,lead,{});
+  assert.equal((await change("resume")).status,409);
+  assert.equal((await change("pause")).status,204);
+  assert.equal(await claim(baseUrl,"preparer-a"),null);
+  assert.equal((await change("resume")).status,204);
+  const task=await claim(baseUrl,"preparer-a"); assert(task);
+  assert.equal((await change("pause")).status,409);
+  await noContent(await complete(baseUrl,"preparer-a",task,prepare(task.input)));
+  assert.equal((await change("pause")).status,204);
+  assert.equal(await claim(baseUrl,"verifier-a"),null);
+  const board=await (await request(baseUrl,"/api/command",lead)).json();
+  assert.equal(board.counts.find((x:{status:string})=>x.status==="paused").count,1);
+  assert(board.contacts.some((x:{fresh:boolean})=>x.fresh));
+  await db.query("UPDATE runner_contacts SET last_seen=now()-interval '1 minute'");
+  assert((await (await request(baseUrl,"/api/command",lead)).json()).contacts.every((x:{fresh:boolean})=>!x.fresh));
+  assert.equal((await change("resume")).status,204);
+  const v=await claim(baseUrl,"verifier-a"); assert(v);
+  await db.query("UPDATE attempts SET lease_until=now()-interval '1 second' WHERE id=$1",[v.attemptId]);
+  const beforeRead=await persisted(id);
+  const inspection=await (await request(baseUrl,path+"/report",lead)).json();
+  assert(inspection.quality.checks.every((c:{state:string})=>c.state==="not_run"));
+  assert.deepEqual(await persisted(id),beforeRead);
+  await new Core(db).sweepExpired();
+  const replace=await claim(baseUrl,"verifier-a"); assert(replace && replace.generation>v.generation);
+  await noContent(await change("cancel"));
+  assert.equal((await change("resume")).status,409);
+  assert.equal((await persisted(id)).checkpoints.length,1);
+});
+
+test("G3 · relance idempotente et liée à une mission terminale du même projet",async t=>{
+  const {baseUrl}=await startStudio(t);
+  const id=await createMission(baseUrl), path="/api/projects/a/missions/"+id;
+  const commandKey=randomUUID();
+  const replay=()=>request(baseUrl,path+"/relaunch",lead,{confirm:"yes",commandKey});
+  assert.equal((await replay()).status,409);
+  await noContent(await request(baseUrl,path+"/cancel",lead,{}));
+  const before=await persisted(id);
+  const child=await responseJson<{id:string}>(await replay(),201);
+  assert.notEqual(child.id,id); assert.deepEqual(await responseJson(await replay(),201),child);
+  assert.deepEqual(await persisted(id),before);
+  assert.equal((await request(baseUrl,"/api/projects/a/missions",lead,{commandKey,fixtureId:"nominal"})).status,409);
+  const report=await (await request(baseUrl,"/api/projects/a/missions/"+child.id+"/report",lead)).json();
+  assert.equal(report.mission.events[0].details.relaunchOf,id);
+});
+
+test("G3 · migrations rejouables et divergence de contenu refusée",async()=>{
+  await migrate(db);
+  const {rows}=await db.query("SELECT name,digest FROM schema_migrations ORDER BY name");
+  assert.deepEqual(rows.map(r=>r.name), await migrationNames());
+  assert(rows.some(r=>r.name === '003-qualification.sql'));
+  await db.query("UPDATE schema_migrations SET digest=repeat('0',64) WHERE name=$1",[rows[0].name]);
+  await assert.rejects(migrate(db),/Migration modifiée/);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM projects")).rows[0].n,2);
 });
 
 test("interface locale : session, origine des formulaires et lancement idempotent", async t => {
