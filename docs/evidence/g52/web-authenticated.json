@@ -1,0 +1,477 @@
+{
+  "schema": "g52-web-v1",
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "profile": "authenticated",
+  "database": {
+    "image": "sha256:1eff563f6c868b9b433566e9f3cf6e5c79fbd3b95bf70ec7277d376cdbfc50d7",
+    "migrations": 19,
+    "migrationBundleSha256": "8d32ae08de6b4d239269c9d64aa6281d89e0c3da7cce99b6a596f4ecdc605452",
+    "network": "none",
+    "role": "authenticated"
+  },
+  "toolSha256": {
+    "launcher": "f961bdf34dfbd2243bb9cca45b478a18a70a590c1f31229932956b23dc9fc860",
+    "browser": "b8af4ed5d138d9eab0274f11978e0b2475d915197ec0fe821f0c931439af758e",
+    "service": "6826e681ea61dd1debd342314a2d9037e43a22296e49011cce508c11348931d2"
+  },
+  "lockSha256": "67284de4f7341f0b91a9c8dab709c73fd169bedb7e52dc74012d4fbd0b5ac4ff",
+  "image": "mcr.microsoft.com/playwright@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d",
+  "cachePackages": 677,
+  "network": "none",
+  "publishedPorts": 0,
+  "observedAt": "2026-11-25T22:57:14.631Z",
+  "status": "FAILED",
+  "qualification": {
+    "uid": 65534,
+    "rootReadOnly": true,
+    "cpu": 3,
+    "memoryMiB": 5120,
+    "pids": 384,
+    "capabilities": 0,
+    "noNewPrivileges": true,
+    "interfaces": [
+      "lo"
+    ]
+  },
+  "exported": {
+    "mode": "static",
+    "configUnchanged": true,
+    "shellVersion": "ce3279bb4372159f46e93c855c39463fcf96e0720285157f32769b0b24718bc7",
+    "publicResources": 110,
+    "bytes": 15824459,
+    "documents": [
+      "/",
+      "/courses"
+    ]
+  },
+  "steps": [
+    {
+      "step": "session-courses",
+      "status": "PASS"
+    },
+    {
+      "step": "cache-pret",
+      "status": "PASS"
+    },
+    {
+      "step": "creer-trois-articles",
+      "status": "PASS"
+    },
+    {
+      "step": "renommer-changer-quantite-cocher",
+      "status": "PASS"
+    },
+    {
+      "step": "verification-service-initial",
+      "status": "FAIL",
+      "windowSeconds": 15
+    },
+    {
+      "step": "cocher-apres-coupure",
+      "status": "PASS"
+    },
+    {
+      "step": "coupure-et-fermeture",
+      "status": "PASS"
+    },
+    {
+      "step": "nouveau-processus-hors-ligne",
+      "status": "PASS"
+    },
+    {
+      "step": "crud-hors-ligne",
+      "status": "PASS"
+    },
+    {
+      "step": "reconnexion",
+      "status": "PASS"
+    },
+    {
+      "step": "reconnexion-sans-double-application",
+      "status": "PASS"
+    },
+    {
+      "step": "expiration-et-reprise",
+      "status": "PASS"
+    }
+  ],
+  "evidence": {
+    "previewBanner": false,
+    "cacheMatchesBuild": true,
+    "databaseBefore": {
+      "rows": [
+        {
+          "name": "Haricots témoins",
+          "quantity": "2",
+          "checked": false
+        },
+        {
+          "name": "Pommes témoins",
+          "quantity": "3",
+          "checked": false
+        },
+        {
+          "name": "Riz long témoin",
+          "quantity": "4",
+          "checked": false
+        }
+      ],
+      "receipts": 4
+    },
+    "beforeNetworkCut": [
+      {
+        "schema": 2,
+        "revision": 14,
+        "base": 3,
+        "pending": 1,
+        "observedChecked": true,
+        "intents": [
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          }
+        ]
+      }
+    ],
+    "initialState": [
+      {
+        "name": "Haricots témoins",
+        "quantity": "2",
+        "checked": false
+      },
+      {
+        "name": "Pommes témoins",
+        "quantity": "3",
+        "checked": false
+      },
+      {
+        "name": "Riz long témoin",
+        "quantity": "4",
+        "checked": true
+      }
+    ],
+    "originStopped": true,
+    "offlineBeforeClose": [
+      {
+        "visibleChecked": false,
+        "ariaChecked": null,
+        "persistedChecked": false,
+        "revision": 16,
+        "journalSize": 2
+      },
+      {
+        "visibleChecked": true,
+        "ariaChecked": null,
+        "persistedChecked": true,
+        "revision": 18,
+        "journalSize": 3
+      }
+    ],
+    "receiptsDuringOfflineToggles": 0,
+    "beforeClose": [
+      {
+        "schema": 2,
+        "revision": 18,
+        "base": 3,
+        "pending": 3,
+        "observedChecked": true,
+        "intents": [
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 1
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          }
+        ]
+      }
+    ],
+    "initialNetwork": {
+      "requests": 38,
+      "grouped": {
+        "page-200": 1,
+        "javascript-200": 8,
+        "asset-200": 8,
+        "other-loopback-200": 20,
+        "other-loopback-0-failed": 1
+      },
+      "outside": 0,
+      "loopbackOther": 21,
+      "failed": 1,
+      "loadedScripts": 8,
+      "workerDocuments": 0
+    },
+    "initialConsole": {
+      "errors": 0,
+      "warnings": 0,
+      "exceptions": 0,
+      "logErrors": 5,
+      "classes": {
+        "other": 4,
+        "resource": 1
+      }
+    },
+    "firstExited": true,
+    "changedPid": true,
+    "clientOffline": true,
+    "documentFromWorker": true,
+    "afterCold": [
+      {
+        "schema": 2,
+        "revision": 18,
+        "base": 3,
+        "pending": 3,
+        "observedChecked": true,
+        "intents": [
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 1
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          }
+        ]
+      }
+    ],
+    "coldNetwork": {
+      "requests": 21,
+      "grouped": {
+        "page-200": 1,
+        "javascript-200": 8,
+        "asset-200": 8,
+        "other-loopback-0-failed": 2,
+        "other-loopback-200": 2
+      },
+      "outside": 0,
+      "loopbackOther": 4,
+      "failed": 2,
+      "loadedScripts": 8,
+      "workerDocuments": 1
+    },
+    "accessDuringCold": 0,
+    "appliedDuringCold": 0,
+    "offlineState": [
+      {
+        "name": "Haricots témoins",
+        "quantity": "5",
+        "checked": false
+      },
+      {
+        "name": "Poire témoin",
+        "quantity": "6",
+        "checked": false
+      },
+      {
+        "name": "Riz long témoin",
+        "quantity": "4",
+        "checked": false
+      }
+    ],
+    "offlineStorage": [
+      {
+        "schema": 2,
+        "revision": 22,
+        "base": 3,
+        "pending": 7,
+        "observedChecked": false,
+        "intents": [
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 1
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "add",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "update",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "check",
+            "status": "pending",
+            "attempts": 0
+          },
+          {
+            "kind": "delete",
+            "status": "pending",
+            "attempts": 0
+          }
+        ]
+      }
+    ],
+    "finalStorage": [
+      {
+        "schema": 2,
+        "revision": 37,
+        "base": 4,
+        "pending": 0,
+        "observedChecked": false,
+        "intents": []
+      }
+    ],
+    "databaseAfter": {
+      "rows": [
+        {
+          "name": "Haricots témoins",
+          "quantity": "5",
+          "checked": false
+        },
+        {
+          "name": "Poire témoin",
+          "quantity": "6",
+          "checked": false
+        },
+        {
+          "name": "Riz long témoin",
+          "quantity": "4",
+          "checked": false
+        }
+      ],
+      "receipts": 11
+    },
+    "finalService": {
+      "authenticatedReads": 17,
+      "requests": 34,
+      "receipts": 11,
+      "replays": 0,
+      "rejected": 6,
+      "unserved": 0,
+      "otpRequested": 0,
+      "otpVerified": 0,
+      "methods": {
+        "add": 4,
+        "update": 2,
+        "check": 4,
+        "delete": 1
+      }
+    },
+    "receiptsStable": true,
+    "browserNetwork": {
+      "requests": 76,
+      "grouped": {
+        "page-200": 2,
+        "javascript-200": 16,
+        "asset-200": 16,
+        "other-loopback-0-failed": 6,
+        "other-loopback-200": 36
+      },
+      "outside": 0,
+      "loopbackOther": 42,
+      "failed": 6,
+      "loadedScripts": 16,
+      "workerDocuments": 1
+    },
+    "finalConsole": {
+      "errors": 0,
+      "warnings": 0,
+      "exceptions": 0,
+      "logErrors": 14,
+      "classes": {
+        "resource": 7,
+        "other": 7
+      }
+    },
+    "expiry": {
+      "pendingBeforeExpiry": [
+        {
+          "schema": 2,
+          "revision": 41,
+          "base": 4,
+          "pending": 1,
+          "observedChecked": false,
+          "intents": [
+            {
+              "kind": "add",
+              "status": "pending",
+              "attempts": 1
+            }
+          ]
+        }
+      ],
+      "newProcess": true,
+      "lockedWithoutPrivateRows": true,
+      "pendingWhileLocked": [
+        {
+          "schema": 2,
+          "revision": 41,
+          "base": 4,
+          "pending": 1,
+          "observedChecked": false,
+          "intents": [
+            {
+              "kind": "add",
+              "status": "pending",
+              "attempts": 1
+            }
+          ]
+        }
+      ],
+      "dbAfter": {
+        "rows": [
+          {
+            "name": "Avoine test",
+            "quantity": "7",
+            "checked": false
+          },
+          {
+            "name": "Haricots témoins",
+            "quantity": "5",
+            "checked": false
+          },
+          {
+            "name": "Poire témoin",
+            "quantity": "6",
+            "checked": false
+          },
+          {
+            "name": "Riz long témoin",
+            "quantity": "4",
+            "checked": false
+          }
+        ],
+        "receipts": 12
+      },
+      "verifiedSyntheticOtp": true,
+      "sameScopeJournalDrained": true,
+      "exactlyOneAdditionalReceipt": true
+    }
+  },
+  "serviceType": "loopback-http-real-postgres",
+  "knownLimit": "browser-only",
+  "screenshot": {
+    "file": "web-authenticated.png",
+    "bytes": 39389,
+    "sha256": "b5e5f4152341d808f4460011b5f10b155af0d28369f823d8f8f5d6cf797c181b"
+  }
+}

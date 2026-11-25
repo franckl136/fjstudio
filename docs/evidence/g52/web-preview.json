@@ -1,0 +1,253 @@
+{
+  "schema": "g52-web-v1",
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "profile": "preview",
+  "database": null,
+  "toolSha256": {
+    "launcher": "f961bdf34dfbd2243bb9cca45b478a18a70a590c1f31229932956b23dc9fc860",
+    "browser": "b8af4ed5d138d9eab0274f11978e0b2475d915197ec0fe821f0c931439af758e",
+    "service": "6826e681ea61dd1debd342314a2d9037e43a22296e49011cce508c11348931d2"
+  },
+  "lockSha256": "67284de4f7341f0b91a9c8dab709c73fd169bedb7e52dc74012d4fbd0b5ac4ff",
+  "image": "mcr.microsoft.com/playwright@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d",
+  "cachePackages": 677,
+  "network": "none",
+  "publishedPorts": 0,
+  "observedAt": "2026-11-25T22:56:19.033Z",
+  "status": "PASS",
+  "qualification": {
+    "uid": 65534,
+    "rootReadOnly": true,
+    "cpu": 3,
+    "memoryMiB": 5120,
+    "pids": 384,
+    "capabilities": 0,
+    "noNewPrivileges": true,
+    "interfaces": [
+      "lo"
+    ]
+  },
+  "exported": {
+    "mode": "static",
+    "configUnchanged": true,
+    "shellVersion": "4ecdee3304e05ff155971be6e00593106ff094cbee208a3b53b7c7e55b89ffcb",
+    "publicResources": 110,
+    "bytes": 15824459,
+    "documents": [
+      "/",
+      "/courses"
+    ]
+  },
+  "steps": [
+    {
+      "step": "session-courses",
+      "status": "PASS"
+    },
+    {
+      "step": "cache-pret",
+      "status": "PASS"
+    },
+    {
+      "step": "creer-trois-articles",
+      "status": "PASS"
+    },
+    {
+      "step": "renommer-changer-quantite-cocher",
+      "status": "PASS"
+    },
+    {
+      "step": "cocher-apres-coupure",
+      "status": "PASS"
+    },
+    {
+      "step": "coupure-et-fermeture",
+      "status": "PASS"
+    },
+    {
+      "step": "nouveau-processus-hors-ligne",
+      "status": "PASS"
+    },
+    {
+      "step": "crud-hors-ligne",
+      "status": "PASS"
+    },
+    {
+      "step": "reconnexion",
+      "status": "PASS"
+    }
+  ],
+  "evidence": {
+    "previewBanner": true,
+    "cacheMatchesBuild": true,
+    "initialState": [
+      {
+        "name": "Haricots témoins",
+        "quantity": "2",
+        "checked": false
+      },
+      {
+        "name": "Pommes témoins",
+        "quantity": "3",
+        "checked": false
+      },
+      {
+        "name": "Riz long témoin",
+        "quantity": "4",
+        "checked": true
+      }
+    ],
+    "originStopped": true,
+    "offlineBeforeClose": [
+      {
+        "visibleChecked": false,
+        "ariaChecked": null,
+        "persistedChecked": false,
+        "revision": 6,
+        "journalSize": 0
+      },
+      {
+        "visibleChecked": true,
+        "ariaChecked": null,
+        "persistedChecked": true,
+        "revision": 7,
+        "journalSize": 0
+      }
+    ],
+    "receiptsDuringOfflineToggles": 0,
+    "beforeClose": [
+      {
+        "schema": 2,
+        "revision": 7,
+        "base": 3,
+        "pending": 0,
+        "observedChecked": true,
+        "intents": []
+      }
+    ],
+    "initialNetwork": {
+      "requests": 19,
+      "grouped": {
+        "page-200": 1,
+        "javascript-200": 10,
+        "asset-200": 8
+      },
+      "outside": 0,
+      "loopbackOther": 0,
+      "failed": 0,
+      "loadedScripts": 10,
+      "workerDocuments": 0
+    },
+    "initialConsole": {
+      "errors": 0,
+      "warnings": 0,
+      "exceptions": 0,
+      "logErrors": 0,
+      "classes": {}
+    },
+    "firstExited": true,
+    "changedPid": true,
+    "clientOffline": true,
+    "documentFromWorker": true,
+    "afterCold": [
+      {
+        "schema": 2,
+        "revision": 7,
+        "base": 3,
+        "pending": 0,
+        "observedChecked": true,
+        "intents": []
+      }
+    ],
+    "coldNetwork": {
+      "requests": 17,
+      "grouped": {
+        "page-200": 1,
+        "javascript-200": 8,
+        "asset-200": 8
+      },
+      "outside": 0,
+      "loopbackOther": 0,
+      "failed": 0,
+      "loadedScripts": 8,
+      "workerDocuments": 1
+    },
+    "accessDuringCold": 0,
+    "appliedDuringCold": 0,
+    "offlineState": [
+      {
+        "name": "Haricots témoins",
+        "quantity": "5",
+        "checked": false
+      },
+      {
+        "name": "Poire témoin",
+        "quantity": "6",
+        "checked": false
+      },
+      {
+        "name": "Riz long témoin",
+        "quantity": "4",
+        "checked": false
+      }
+    ],
+    "offlineStorage": [
+      {
+        "schema": 2,
+        "revision": 11,
+        "base": 4,
+        "pending": 0,
+        "observedChecked": false,
+        "intents": []
+      }
+    ],
+    "finalStorage": [
+      {
+        "schema": 2,
+        "revision": 11,
+        "base": 4,
+        "pending": 0,
+        "observedChecked": false,
+        "intents": []
+      }
+    ],
+    "databaseAfter": null,
+    "finalService": {
+      "authenticatedReads": 0,
+      "requests": 0,
+      "receipts": 0,
+      "replays": 0,
+      "rejected": 0,
+      "unserved": 0,
+      "otpRequested": 0,
+      "otpVerified": 0,
+      "methods": {}
+    },
+    "browserNetwork": {
+      "requests": 34,
+      "grouped": {
+        "page-200": 2,
+        "javascript-200": 16,
+        "asset-200": 16
+      },
+      "outside": 0,
+      "loopbackOther": 0,
+      "failed": 0,
+      "loadedScripts": 16,
+      "workerDocuments": 1
+    },
+    "finalConsole": {
+      "errors": 0,
+      "warnings": 0,
+      "exceptions": 0,
+      "logErrors": 0,
+      "classes": {}
+    }
+  },
+  "serviceType": "synthetic-preview-local",
+  "knownLimit": "browser-only",
+  "screenshot": {
+    "file": "web-preview.png",
+    "bytes": 34086,
+    "sha256": "bbe2ab893e70bc38608e5528220c901283840b59f9a21040a4703f03ac69e789"
+  }
+}

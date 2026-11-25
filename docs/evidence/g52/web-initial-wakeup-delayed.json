@@ -1,0 +1,73 @@
+{
+  "schema": "g52-web-observation-v1",
+  "scenario": "verification-service-initial",
+  "profile": "authenticated",
+  "commit": "d0d8f110c7ebb6b3a0a354dd97ba8574dc3ba86e",
+  "status": "FAIL",
+  "windowSeconds": 15,
+  "observedAt": "2026-11-25T22:51:08.183Z",
+  "sourceReceiptSha256": "444590de928163a915b615feab6d6952232804661de90ae9e4546c83b81527e6",
+  "image": "mcr.microsoft.com/playwright@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d",
+  "lockSha256": "67284de4f7341f0b91a9c8dab709c73fd169bedb7e52dc74012d4fbd0b5ac4ff",
+  "database": {
+    "image": "sha256:1eff563f6c868b9b433566e9f3cf6e5c79fbd3b95bf70ec7277d376cdbfc50d7",
+    "migrations": 19,
+    "migrationBundleSha256": "8d32ae08de6b4d239269c9d64aa6281d89e0c3da7cce99b6a596f4ecdc605452",
+    "network": "none",
+    "role": "authenticated"
+  },
+  "observedUiConfirmed": "PASS",
+  "expectedUiRows": [
+    {
+      "name": "Haricots témoins",
+      "quantity": "2",
+      "checked": false
+    },
+    {
+      "name": "Pommes témoins",
+      "quantity": "3",
+      "checked": false
+    },
+    {
+      "name": "Riz long témoin",
+      "quantity": "4",
+      "checked": true
+    }
+  ],
+  "databaseBeforeNetworkCut": {
+    "rows": [
+      {
+        "name": "Haricots témoins",
+        "quantity": "2",
+        "checked": false
+      },
+      {
+        "name": "Pommes témoins",
+        "quantity": "3",
+        "checked": false
+      },
+      {
+        "name": "Riz long témoin",
+        "quantity": "4",
+        "checked": false
+      }
+    ],
+    "receipts": 4
+  },
+  "journalBeforeNetworkCut": [
+    {
+      "schema": 2,
+      "revision": 14,
+      "base": 3,
+      "pending": 1,
+      "intents": [
+        {
+          "kind": "check",
+          "status": "pending",
+          "attempts": 0
+        }
+      ]
+    }
+  ],
+  "networkCutAfterObservation": true
+}
