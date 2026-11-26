@@ -1,5 +1,5 @@
 import { navigationRequest } from './project-navigation.ts';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { productReviewRoute } from './product-review-routes.ts';
 import { academyRoute } from './academy-routes.ts';
 import { databaseRoute } from './explorer-routes.ts';
@@ -14,6 +14,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Core } from './core.ts';
 import type { Credential, JsonObject, Operator, ProjectId } from './contracts.ts';
 import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts';
+import { assertProject } from './database.ts';
 import { projectStack } from './project-stack.ts';
 import { projectFollow } from './project-follow.ts';
 import { loginPage, projectPage, missionPage, errorPage,layout,e,orderedProjects } from './views.ts';
@@ -38,6 +39,9 @@ const officeAssets = new Map(['work-room.png','review-room.png','maker.png','rev
     bytes:readFileSync(new URL('./office/'+name,import.meta.url)) }]));
 const cookieName = 'a1_operator';
 const moduleFiles:Record<string,[string,string]>={
+  '/activity-assets/journal.js':['activity-journal.js','text/javascript; charset=utf-8'],
+  '/activity-assets/journal.css':['activity-journal.css','text/css; charset=utf-8'],
+  '/form-assets/drafts.js':['form-drafts.js','text/javascript; charset=utf-8'],
   '/control-assets/brief.js':['control-brief.js','text/javascript; charset=utf-8'],
   '/database-assets/erd.js':['explorer/erd.js','text/javascript; charset=utf-8'],
   '/database-assets/explorer.css':['explorer/explorer.css','text/css; charset=utf-8'],
@@ -174,6 +178,19 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       const result=await projectTeamBrief(core.pool,actor,project,String(input.observation),String(input.kind),String(input.commandKey));
       redirect(res,'/projects/'+project+'/control/'+result.id);return true;
     }
+    const draftAccess=!api && /^\/projects\/([a-z0-9-]+)\/draft-access\/(mission-new|mission-edit-[a-f0-9-]{36})$/.exec(url.pathname);
+    if(draftAccess){
+      if(req.method!=='POST')fail(405,'method','Méthode indisponible.');
+      const [,project,form]=draftAccess;
+      assertProject(actor,project);
+      const fields=await body(req,'json');exactKeys(fields,'account');
+      if(fields.account!==actor.id)fail(403,'draft_account','Le compte actif a changé. Rechargez la page.');
+      const credential=humanKey??credentials.find(c=>c.kind==='operator' && c.id===actor.id)?.token;
+      if(!credential)fail(403,'draft_account','Compte indisponible.');
+      const key=createHmac('sha256',credential).update(JSON.stringify(['fjstudio-device-drafts-v1',actor.id,project,form])).digest();
+      json(res,200,{key:key.toString('base64url'),scope:createHash('sha256').update(key).digest('hex')});
+      return true;
+    }
     if (await workspaceRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await academyRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await databaseRoute(core.pool,req,res,url,actor,api,io)) return true;
@@ -300,10 +317,10 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         const [file,mime]=moduleFiles[path];
         send(res,200,mime,readFileSync(new URL('./'+file,import.meta.url)));return;
       }
-      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/(?:database|control))$/.test(path)) {
+      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/database)$/.test(path)) {
         res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'");
       }
-      if (path==='/office' && method==='GET') {
+      if (method==='GET' && (path==='/office' || path==='/activity' || /^\/projects\/[a-z0-9-]+\/control(?:\/[a-f0-9-]{36})?$/.test(path))) {
         res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'; connect-src 'self'");
       }
       if (path === '/style.css' && method === 'GET') {

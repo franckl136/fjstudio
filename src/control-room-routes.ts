@@ -80,10 +80,12 @@ function specificFields(purpose:keyof typeof missionPurposes, details:Record<str
   return Object.entries(purposeFields[purpose]).map(([key,label])=>
     `<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(details[key]??'')}"></label>`).join('');
 }
-function briefForm(path: string, m?: ControlMission,requested?:string|null,seed?:ReturnType<typeof resumeBrief>) {
+function briefForm(path: string, account:string, m?: ControlMission,requested?:string|null,seed?:ReturnType<typeof resumeBrief>) {
   const purpose=(m?.purpose??requested??'documentation') as keyof typeof missionPurposes;
   if(!Object.hasOwn(missionPurposes,purpose)) invalid('Finalité inconnue.');
-  return `<form method="post" action="${e(path)}">${hidden('commandKey', randomUUID())}${m ? hidden('revision', m.revision) : ''}
+  const root=m?'/projects/'+m.project_id:path.slice(0,-'/control'.length);
+  const access=root+'/draft-access/'+(m?'mission-edit-'+m.id:'mission-new');
+  return `<noscript><p>La sauvegarde sur cet appareil et la protection de sortie nécessitent JavaScript.</p></noscript><div data-draft-tools hidden><p role="status" aria-live="polite" data-draft-status></p><div data-draft-list></div><div class="actions"><button type="button" data-draft-retry hidden>Réessayer la sauvegarde</button><button type="button" data-draft-copy hidden>Conserver une copie séparée</button><button type="button" data-draft-discard hidden>Abandonner ce brouillon local</button></div></div><form autocomplete="off" method="post" action="${e(path)}" data-draft-access="${e(access)}" data-draft-account="${e(account)}" data-draft-fields="${e(fieldNames.join(' '))}">${hidden('commandKey', randomUUID())}${hidden('formAccount',account)}${m ? hidden('revision', m.revision) : ''}
     ${hidden('purpose',purpose)}<p><strong data-purpose-title>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
     <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? seed?.objective ?? '')}"></label>
     <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? seed?.scope ?? '')}</textarea></label>
@@ -95,7 +97,7 @@ function briefForm(path: string, m?: ControlMission,requested?:string|null,seed?
     <label>Décision avant exécution<select name="risk"><option value="normal">Plan standard</option>
       <option value="review"${m?.risk === 'review' ? ' selected' : ''}>Approbation opérateur requise</option></select></label>
     <label>Durée maximale en minutes<input required type="number" min="1" max="60" name="durationMinutes" value="${m?.duration_minutes ?? 15}"></label>
-    <button>${m ? 'Enregistrer la révision' : 'Créer le brouillon'}</button></form>`;
+    <button>${m ? 'Enregistrer la révision' : 'Créer la mission en brouillon'}</button><p data-draft-submit-error role="alert" hidden></p></form>`;
 }
 function planTable() {
   const rows = documentPlan
@@ -124,7 +126,7 @@ function controls(path: string, m: ControlMission) {
     )
     .join('');
 }
-function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetail>>, canOperate: boolean) {
+function detailView(root: string, account:string, detail: Awaited<ReturnType<typeof controlDetail>>, canOperate: boolean) {
   const m = detail.mission,
     path = root + '/' + m.id;
   const coverage=detail.tasks.find(t=>t.task_key==='coverage')?.result?.matches as {criterion:string;covered:boolean;lines:number[]}[]|undefined;
@@ -183,7 +185,7 @@ function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetai
     <a href="${path}/handoff">Échange manuel et propositions</a></div></section>
     <section class="panel" id="plan"><h2>Graphe d’exécution</h2><p>${e(missionPurposes[m.purpose as keyof typeof missionPurposes])} · ${m.plan_mode==='sequential'?'Étapes successives':'Deux lectures en parallèle, puis synthèse'} · ${detail.tasks.length?'plan en base':'plan prévisionnel'}</p>
       <ol class="execution-graph">${graph}</ol>${canOperate ? '<div class="actions">' + controls(path, m) + '</div>' : ''}</section>
-    ${canOperate && ['draft', 'needs_approval'].includes(m.status) ? `<details class="panel"><summary>Modifier le périmètre</summary>${briefForm(path + '/edit', m)}</details>` : ''}
+    ${canOperate && ['draft', 'needs_approval'].includes(m.status) ? `<details class="panel"><summary>Modifier le périmètre</summary>${briefForm(path + '/edit', account, m)}</details>` : ''}
     ${tasks ? `<section class="panel"><h2>Travaux et livrables</h2><ul>${tasks}</ul></section>` : ''}
     ${attempts ? `<section class="panel"><h2>Tentatives</h2><ul class="history">${attempts}</ul></section>` : ''}
     <section class="panel"><h2>Historique</h2><ul class="history">${events}</ul></section>`;
@@ -218,7 +220,7 @@ export async function controlRoomRoute(
           200,
           layout(
             detail.mission.objective,
-            detailView(root, detail, actor.accountRole !== 'viewer'),
+            detailView(root, actor.id, detail, actor.accountRole !== 'viewer')+'<script src="/form-assets/drafts.js" defer></script>',
             await projects(pool, actor),
             project,
             true,
@@ -245,13 +247,13 @@ export async function controlRoomRoute(
         const composer=actor.accountRole==='viewer'?'':`<section class="panel" id="brief"><h2>Créer une mission</h2>
           <form class="filters brief-selector" method="get" action="${root}#brief">${seed?hidden('modele','reprise'):''}<label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([key,title])=>
             `<option value="${key}"${key===selected?' selected':''}>${e(title)}</option>`).join('')}</select></label><button>Afficher les champs</button></form>
-          ${seed?'<p>Le dossier reprend les indices du code local. Complétez le compte rendu avant la revue.</p>':''}${briefForm(root,undefined,selected,seed)}
+          ${seed?'<p>Le dossier reprend les indices du code local. Complétez le compte rendu avant la revue.</p>':''}${briefForm(root,actor.id,undefined,selected,seed)}
           ${(Object.keys(missionPurposes) as (keyof typeof missionPurposes)[]).map(key=>
             `<template data-purpose="${key}" data-source="${e(sourceLabels[key])}">${specificFields(key)}</template>`).join('')}
-          <script src="/control-assets/brief.js" defer></script></section>`;
+          <script src="/control-assets/brief.js" defer></script><script src="/form-assets/drafts.js" defer></script></section>`;
         const panel = `<header class="product-heading"><h1>Agent Control Room</h1>${composer?'<nav class="actions" aria-label="Accès aux missions"><a href="#brief">Créer une mission</a><a href="#missions">Missions du projet</a></nav>':''}</header>
-          ${composer}
           <section class="panel" id="missions"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
+          ${composer}
           <details class="panel"><summary>Adaptateurs et limites</summary>${planTable()}<p>Deux travaux peuvent progresser en parallèle dans le projet. Chaque lecteur travaille sur le texte du contrat, en mémoire. Budget des moteurs externes&nbsp;: 0 €.</p></details>`;
         io.html(res, 200, layout('Agent Control Room', panel, projectList, project, true));
       }
@@ -260,6 +262,10 @@ export async function controlRoomRoute(
   }
   if (req.method !== 'POST') throw new DomainError(405, 'method', 'Méthode indisponible.');
   const input = await io.body(req, api ? 'json' : 'form');
+  if(!api && Object.hasOwn(input,'formAccount')){
+    if(input.formAccount!==actor.id) throw new DomainError(403,'draft_account','Le compte actif a changé. Rechargez la page.');
+    delete input.formAccount;
+  }
   if (typeof input.commandKey !== 'string') invalid('Clé de commande requise.');
   let result: { id: string };
   if (!id) {
@@ -286,7 +292,7 @@ export async function controlRoomRoute(
       fields,
     );
   } else invalid('Action de mission absente.');
-  if (api) io.json(res, id && action !== 'relaunch' ? 200 : 201, result);
+  if (api || req.headers.accept==='application/json') io.json(res, id && action !== 'relaunch' ? 200 : 201, result);
   else io.redirect(res, root + '/' + result.id);
   return true;
 }
