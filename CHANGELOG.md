@@ -1,5 +1,13 @@
 # Historique du Studio
 
+## 0.4.0-rc.5 · Candidate de développement · 26 novembre 2026
+
+- Cinq faits marquants au plus sur l’accueil. Le journal détaillé conserve les preuves, affiche dix lignes par page, les filtres et les commandes de navigation en tête.
+- La Control Room présente d’abord les missions et leur statut. La garde de sortie conserve la saisie si l’on reste et fonctionne sans stockage. La persistance chiffrée sur le même appareil reste une option de recette désactivée par défaut.
+- Les changements d’espace conservent le projet explicite. Le portefeuille mobile propose deux sélecteurs et des détails de projet repliables. Le filtre Prioritaires précise son périmètre.
+- Les Labs affichent la nature du fichier, le commit sélectionné et les contrôles. Database Explorer adapte ses explications aux manifestes, schémas et erreurs de lecture du projet. Project Intelligence détaille la provenance et la révision de ses fiches.
+- L’Academy existante conserve le contexte du projet vers les guides. Le Loft conserve la scène et distingue l’historique des missions de la présence des postes.
+
 ## 0.4.0-rc.4 · 26 novembre 2026
 
 - Le menu Projets conserve l’espace ouvert. Depuis une mission ou une photographie, il ouvre la collection correspondante du projet choisi. La fiche reste accessible directement.
