@@ -83,6 +83,8 @@ test('Academy · aide locale, FK et comparaison PostgreSQL exactes, RLS lue depu
   assert.equal(s.rls,true);assert.equal(s.policy.command,'SELECT');assert.equal(s.policy.using,'true');
   assert.deepEqual(s.changes,['public.travaux.colonne.titre']);
   assert(helpSearch('REDIGER un brief').lessons.some(l=>l.id==='mission'));
+  assert(helpSearch('Database Explorer').docs.some(d=>d.id==='database'));
+  assert(helpSearch('automatisation').docs.some(d=>d.id==='architecture'));
   assert(helpSearch('sauvegarde').docs.some(d=>d.id==='recovery'));assert.deepEqual(helpSearch('<img NO_RESULT>'),{docs:[],lessons:[]});
   assert.equal(academyGuide('quality'),'/academy/qualite');
 });

@@ -9,7 +9,8 @@ const sources=[
   {id:'review',title:'Revue des changements Git',file:'product-review.md'},
   {id:'handoff',title:'Échange de documents et de résultats',file:'product-handoff.md'},
   {id:'academy',title:'Utiliser Studio Academy',file:'studio-academy.md'},
-  {id:'database',title:'Utiliser Database Explorer',file:'database-explorer.md'},
+  {id:'database',title:'Utiliser Database Explorer',file:'evolution/database-explorer.md'},
+  {id:'architecture',title:'Architecture Explorer et Centre d’automatisation',file:'evolution/architecture-automations.md'},
 ];
 export type HelpDoc={id:string;title:string;file:string;paragraphs:string[]};
 let documents:HelpDoc[]|undefined;
