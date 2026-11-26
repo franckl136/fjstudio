@@ -2,6 +2,8 @@
 
 Ouvrez **Studio Academy** dans la navigation, ou le guide contextuel depuis un module. La page rassemble dix-neuf leçons en quatre parcours. **Commencer** ouvre la première leçon. **Continuer** propose une leçon commencée dont les prérequis sont disponibles, ou le prochain exercice accessible.
 
+Une leçon ouverte depuis un projet conserve ce projet dans les liens vers son espace, les résultats documentaires et le retour au parcours. Depuis la vue globale, le lien vers une Control Room demande le projet à ouvrir. Le carnet de formation et sa progression restent associés au compte.
+
 ## Se former
 
 Chaque leçon relie un exemple synthétique à une action du Studio. Les liens **Observer**, **Pratiquer** et **Relire la preuve** placent le focus sur la partie correspondante de la page. Le lien vers le module ouvre un écran de consultation soumis à vos droits habituels. La navigation reste libre pendant la formation.
