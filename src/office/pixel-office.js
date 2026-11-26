@@ -14,6 +14,8 @@ const ink='#354340',brass='#dba95e', wood=['#d8a467','#ae7246','#855538'], oak=[
 const teal=['#79ab95','#4e8675','#396958'], coral=['#dc8965','#b76550','#8f5144'];
 const iron=['#647877','#405557','#34454b'], linen=['#f6e7bb','#dcca9d','#c3af8b'];
 const atlas=new Image();
+const wallArt=new Image();
+const wallCells={desks:[0,0],control:[1,0],coffee:[0,1],meeting:[1,1]};
 const cells={
   counter:[3,4,138,137],sofa:[147,19,138,122],plant:[301,3,118,138],desk:[435,8,138,133],
   chair:[26,147,92,138],meeting:[147,179,138,106],console:[292,147,135,138],bookcase:[452,147,103,138],
@@ -93,6 +95,18 @@ function notice(p,axis,x,y,w,kind) {
   }else{
     for(let i=0;i<4;i++){const u=.13+i*(w-.3)/4;f.panel(u,21+i%2*2,.32,8,['#f3dc9c','#cdd9ba','#d29e85','#f3ebcf'][i]);f.stroke(u+.08,25+i%2*2,u+.23,25+i%2*2,'#a08e76');}
   }
+}
+// Project the illustrated elevation onto a wall plane, leaving the door and floor geometry intact.
+function mural(p,area,x,y,w,h=44,axis='x',crop=[0,1]) {
+  if(!wallArt.naturalWidth)return false;
+  const [col,row]=wallCells[area],cell=wallArt.naturalWidth/2;
+  const [left,top]=tiles(x,axis==='y'?y+w:y,h+3);
+  const [right,bottom]=tiles(axis==='x'?x+w:x,y,h+3);
+  const ctx=p.ctx;
+  ctx.save();ctx.translate(left,top);ctx.transform(right-left,bottom-top,0,h,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(wallArt,(col+crop[0])*cell+2,row*cell+2,(crop[1]-crop[0])*cell-4,cell-4,0,0,1,1);
+  ctx.restore();return true;
 }
 function shell(p,scheme) {
   const {box,tile,line}=p;
@@ -189,15 +203,18 @@ function pendant(p,x,y,z) {
   p.poly([[a-3,b-7],[a+3,b-7],[a+8,b],[a+7,b+1],[a-7,b+1],[a-8,b]],'#9d714a');
   p.rect(a-7,b,15,2,'#efbc71');p.rect(a-2,b+2,5,2,'#ffe7a1');
 }
-const cafe={sky:'#d3d7bf',grid:'#cbd0b9',shadow:'#acb49d',floor:['#d8bb88','#dcc292','#ddbd8a','#d3b480'],wood:true,seam:'#c9aa79',grain:'#ead09a',wall:'#e2c9a0',side:'#d6b78e',mortar:'#d1b68d',trim:'#537164'};
-const bureau={...cafe,sky:'#d6dfd4',grid:'#c5d1c6',shadow:'#acbcae',wall:'#c3d7c7',side:'#adc8b7',mortar:'#b3c8b6',trim:'#527363'};
-const conference={...cafe,sky:'#e0d8c5',grid:'#d1c9b4',shadow:'#bfb39b',wall:'#d9b19a',side:'#ce9e87',mortar:'#c49e87',trim:'#7f6555'};
+const cafe={sky:'#d3d7bf',grid:'#cbd0b9',shadow:'#acb49d',floor:['#c29162','#c79969','#c89867','#bf9061'],wood:true,seam:'#ac8058',grain:'#d5a87a',wall:'#e2c9a0',side:'#d6b78e',mortar:'#d1b68d',trim:'#537164'};
+const bureau={...cafe,floor:['#ddc698','#e0cb9f','#d9bd94','#d9c195'],seam:'#c5ad84',grain:'#ead8af',sky:'#d6dfd4',grid:'#c5d1c6',shadow:'#acbcae',wall:'#c3d7c7',side:'#adc8b7',mortar:'#b3c8b6',trim:'#527363'};
+const conference={...cafe,floor:['#d7c7a2','#d9c9aa','#d1c2a2','#d5c6a8'],seam:'#c0b398',grain:'#e6dabe',sky:'#e0d8c5',grid:'#d1c9b4',shadow:'#bfb39b',wall:'#d9b19a',side:'#ce9e87',mortar:'#c49e87',trim:'#7f6555'};
 const operations={...cafe,wood:false,sky:'#cad7cf',grid:'#bbcabc',shadow:'#99b0a6',wall:'#76918b',side:'#6b827f',mortar:'#6b8580',trim:'#354f4d',
-  floor:['#adbbac','#aab9aa','#b0beac','#b8c1ac'],grain:'#c8d1bc',seam:'#a4b19f'};
+  floor:['#92a4a4','#8ea09e','#9baca9','#98aaa6'],grain:'#b2bfba',seam:'#a4b19f'};
 
 function drawCafe(p) {
 
-  cityWindow(p,'x',3.28,0,3.44);notice(p,'x',.55,0,2.75,'chalk');
+  if(!mural(p,'coffee',.13,0,6.8)){
+    cityWindow(p,'x',3.28,0,3.44);notice(p,'x',.55,0,2.75,'chalk');
+  }
+  mural(p,'coffee',0,3.4,3.45,43,'y',[0,.36]);
   const shelf=facade(p,'y',0,.52);shelf.panel(0,25,2.65,2.7,wood[2]);shelf.panel(0,27,2.65,1.4,oak[0]);
   for(let i=0;i<6;i++){const [cx,cy]=shelf.pt(.22+i*.40,29);p.rect(cx-2,cy-5,4,6,['#b37b52','#e7d8b2','#637d6d'][i%3]);p.rect(cx-2,cy-6,4,2,ink);}
   rug(p,4.55,1.25,3.78,2.37,'#ba8072','#ead09d');
@@ -230,7 +247,8 @@ function dashboard(p,axis,x,y,w,mode,occupied) {
 }
 function drawBureau(p) {
 
-  cityWindow(p,'y',0,.65,4.05);notice(p,'x',.65,0,2.56,'pin');cityWindow(p,'x',4.18,0,4.18);
+  if(!mural(p,'desks',0,.32,4.34,44,'y',[0,.55]))cityWindow(p,'y',0,.65,4.05);
+  notice(p,'x',.65,0,2.56,'pin');if(!mural(p,'desks',3.55,0,5.31))cityWindow(p,'x',4.18,0,4.18);
   rug(p,1.05,1.05,6.9,3.25,'#9aaf90','#cad2ad');
   workstation(p,2.65,1.23,67,true);officeChair(p,2.75,2.1,true);
   workstation(p,6.65,1.50,66,true);officeChair(p,6.25,2.25,true);
@@ -240,7 +258,7 @@ function drawBureau(p) {
   pendant(p,3.25,.87,45);
 }
 function drawMeeting(p,occupied) {
-  dashboard(p,'x',2.15,0,4.65,'plan',occupied);
+  if(!mural(p,'meeting',2.15,0,6.66))dashboard(p,'x',2.15,0,4.65,'plan',occupied);
   rug(p,2.0,1.5,5.42,3.65,'#77988b','#d9c297');
   if(!furniture(p,'bookcase',7.19,.88,33,45))plant(p,7.19,.88);
   if(!furniture(p,'plant',8.12,.91,34,43))plant(p,8.12,.91);
@@ -251,7 +269,8 @@ function drawMeeting(p,occupied) {
   pendant(p,5.70,2.37,53);
 }
 function drawControl(p,occupied) {
-  dashboard(p,'y',0,.7,3.6,'status',occupied);dashboard(p,'x',.80,0,3.58,'status',occupied);
+  if(!mural(p,'control',0,.27,3.78,44,'y',[.53,1]))dashboard(p,'y',0,.7,3.6,'status',occupied);
+  if(!mural(p,'control',.18,0,4.72))dashboard(p,'x',.80,0,3.58,'status',occupied);
   cityWindow(p,'x',5.18,0,2.95);
   const duct=facade(p,'y',0,4.02);for(let n=0;n<5;n++)duct.panel(n*.18,25,.1,8,'#526d69');
   rug(p,1.01,.91,5.8,3.02,'#6d8d80','#a4b7a1');
@@ -273,10 +292,11 @@ function paintFloor(studio) {
   const canvas=studio.querySelector('[data-floor-art]'),p=painter(canvas);
   if(!p)return false;
   const ctx=p.ctx;
+  ctx.setTransform(canvas.width/mapWidth,0,0,canvas.height/mapHeight,0,0);
   const wash=ctx.createLinearGradient(0,0,mapWidth,mapHeight);
-  wash.addColorStop(0,'#dce3ce');wash.addColorStop(.58,'#d2dbca');wash.addColorStop(1,'#c3d1bc');
+  wash.addColorStop(0,'#233e40');wash.addColorStop(.58,'#344d4c');wash.addColorStop(1,'#263d41');
   ctx.fillStyle=wash;ctx.fillRect(0,0,mapWidth,mapHeight);
-  for(let y=7;y<mapHeight;y+=12)for(let x=6+(y%2)*8;x<mapWidth;x+=16)p.rect(x,y,1,1,'#aebaab');
+  for(let y=7;y<mapHeight;y+=12)for(let x=6+(y%2)*8;x<mapWidth;x+=16)p.rect(x,y,1,1,'#49605b');
   function inRoom(area,draw){
     const [x,y]=project(rooms[area].offset);
     ctx.save();ctx.translate(x-167,y-53);draw();ctx.restore();
@@ -289,9 +309,10 @@ function paintFloor(studio) {
   for(const room of Object.values(rooms)){
     const [x,y]=room.tag;
     ctx.font='bold 10px monospace';const width=Math.ceil(ctx.measureText(room.label).width)+17;
-    p.rect(x+2,y+2,width,16,'#a3ad9e');p.rect(x,y,width,16,'#304b43');p.rect(x+3,y+4,3,8,room.color);
+    p.rect(x+2,y+2,width,16,'#203638');p.rect(x,y,width,16,'#172e2f');p.rect(x+3,y+4,3,8,room.color);
     ctx.fillStyle='#fff1cb';ctx.fillText(room.label,x+10,y+11);
   }
+  canvas.dataset.walls=wallArt.naturalWidth?'illustrated':'geometry';
   canvas.dataset.texture=atlas.naturalWidth?'atlas':'geometry';
   studio.querySelector('.pixel-floor').classList.add('pixel-ready');
   return true;
@@ -374,6 +395,10 @@ function seatPoint(area,seat) {
   if(front[area]?.[seat])return world(area,...front[area][seat]);
   let index=seat-(front[area]?.length??0);
   const count=capacity.get(area)??0;
+  if(area==='coffee' && count<=8){
+    const cafeSeats=[[2.22,2.86],[3.36,3.08],[5.61,3.62],[6.95,3.7],[3.14,5.14],[4.45,5.27],[6.47,5.72],[7.74,5.68]];
+    if(cafeSeats[index])return world(area,...cafeSeats[index]);
+  }
   if(area==='coffee' && index<18){
     const aroundTables=[8,9,4,5,13,14,0,1,7,6,16,17,2,3,10,11,12,15];
     index=aroundTables[index];
@@ -485,11 +510,19 @@ if(studio && paintFloor(studio)){
     for(const link of tabs){
       if(link===current)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
     }
+    const scope=document.querySelector('.scope-filter');
+    if(scope){
+      let field=scope.elements.namedItem('salle');
+      if(url.searchParams.has('salle')){
+        if(!field){field=document.createElement('input');field.type='hidden';field.name='salle';scope.append(field);}
+        field.value=url.searchParams.get('salle');
+      }else if(field)field.remove();
+    }
     const count=studio.querySelector('.loft-people').children.length;
     const caption=studio.querySelector('[data-room-caption]');
     caption.textContent=current.dataset.name?current.dataset.name+' · '+current.dataset.purpose:count+' agent'+(count===1?'':'s')+' en ligne';
     for(const el of studio.querySelectorAll('.loft-people .pixel-person'))el.inert=current.dataset.camera!=='plan' && el.dataset.area!==current.dataset.camera;
-    for(const link of document.querySelectorAll('.office-controls a,.loft-presence a')){
+    for(const link of document.querySelectorAll('.office-controls a,.loft-presence a,.sidebar [data-project-id]')){
       if(link.pathname!=='/office' || link.getAttribute('href').startsWith('#'))continue;
       const to=new URL(link.href);
       if(url.searchParams.has('salle'))to.searchParams.set('salle',url.searchParams.get('salle'));else to.searchParams.delete('salle');
@@ -503,6 +536,7 @@ if(studio && paintFloor(studio)){
   });
   window.addEventListener('popstate',camera);
   mount(studio);camera();
+  wallArt.onload=()=>paintFloor(studio);wallArt.src='/office-assets/loft-walls.webp';
   atlas.onload=()=>paintFloor(studio);atlas.src='/office-assets/pixel-atlas.webp';
   studio.addEventListener('loft-repaint',e=>{mount(studio,e.detail);camera();});
   studio.addEventListener('loft-occupancy',()=>paintFloor(studio));

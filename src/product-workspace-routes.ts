@@ -6,6 +6,7 @@ import { changeProfile, createWorkspaceProject, listWorkspaceProjects, profileDe
 import { activityWeek, readLoft, readWorkspace, type DeskIdentity } from './product-workspace.ts';
 import type { Repositories } from './repositories.ts';
 import { officePage, profilePage, stationUrl, workspacePage } from './product-workspace-views.ts';
+import { saveProjectFollow } from './project-follow.ts';
 import { officeScene } from './office-scene.ts';
 import { readActivity,activityPage,activityFilter } from './activity.ts';
 
@@ -22,6 +23,14 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
   actor: Operator, api: boolean, io: WorkspaceTools): Promise<boolean> {
   const path = api ? url.pathname.slice(4) : url.pathname;
   const get = req.method === 'GET';
+  const follow=/^\/projects\/([^/]+)\/follow$/.exec(path);
+  if(follow){
+    if(!isProjectId(follow[1]))throw notFound();
+    if(req.method!=='POST')throw new DomainError(405,'method','Méthode indisponible.');
+    await saveProjectFollow(pool,actor,follow[1],await io.body(req,api?'json':'form'));
+    if(api)io.json(res,200,{saved:true});else io.redirect(res,'/projects/'+follow[1]+'#reprise');
+    return true;
+  }
   if(path==='/activity' && get) {
     const project=url.searchParams.get('project')||undefined;
     if(project) assertProject(actor,project);
@@ -39,12 +48,13 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     if(project) assertProject(actor,project);
     const targets=(await pool.query<{project_id:string}>(`SELECT project_id FROM project_repositories
       WHERE remote_url='' AND project_id=ANY($1::text[]) ORDER BY project_id`,[project?[project]:actor.projectIds])).rows;
-    let failures=0;
+    const failures:string[]=[];
     for(const target of targets) {
       try { await io.repositories.observe(actor,target.project_id,'local'); }
-      catch(error) { if(!(error instanceof DomainError)) throw error; failures++; }
+      catch(error) { if(!(error instanceof DomainError)) throw error; failures.push(target.project_id); }
     }
-    const params=new URLSearchParams({updated:String(targets.length-failures),unavailable:String(failures)});
+    const params=new URLSearchParams({updated:String(targets.length-failures.length),unavailable:String(failures.length)});
+    for(const id of failures)params.append('failedProject',id);
     if(project) params.set('project',project);
     io.redirect(res,'/workspace?'+params+'#portefeuille');
     return true;

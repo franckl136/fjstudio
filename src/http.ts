@@ -1,3 +1,4 @@
+import { navigationRequest } from './project-navigation.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { productReviewRoute } from './product-review-routes.ts';
 import { academyRoute } from './academy-routes.ts';
@@ -13,6 +14,8 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Core } from './core.ts';
 import type { Credential, JsonObject, Operator, ProjectId } from './contracts.ts';
 import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts';
+import { projectStack } from './project-stack.ts';
+import { projectFollow } from './project-follow.ts';
 import { loginPage, projectPage, missionPage, errorPage,layout,e,orderedProjects } from './views.ts';
 
 import { HumanAccess, identityKey } from './product-auth.ts';
@@ -40,6 +43,7 @@ const moduleFiles:Record<string,[string,string]>={
   '/database-assets/explorer.css':['explorer/explorer.css','text/css; charset=utf-8'],
   '/office-assets/pixel-office.js':['office/pixel-office.js','text/javascript; charset=utf-8'],
   '/office-assets/pixel-office.css':['office/pixel-office.css','text/css; charset=utf-8'],
+  '/office-assets/loft-walls.webp':['office/loft-walls.webp','image/webp'],
   '/office-assets/pixel-atlas.webp':['office/pixel-atlas.webp','image/webp'],
   '/academy.css':['academy.css','text/css; charset=utf-8'],
 };
@@ -276,7 +280,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
     return false;
   }
 
-  return createHttpServer({ requestTimeout: 10_000 }, async (req, res) => {
+  return createHttpServer({ requestTimeout: 10_000 }, (req, res) => navigationRequest.run(req.url ?? '/', async () => {
     const correlation = randomUUID();
     res.setHeader('X-Request-Id', correlation);
     res.setHeader('Cache-Control', 'no-store');
@@ -436,7 +440,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         if (method === 'GET' && path === '/projects/' + project) {
           const projects = await core.listProjects(actor);
           const selected = await core.getProject(actor, project);
-          html(res, 200, projectPage(projects, selected, randomUUID(),actor.accountRole!=='viewer',await core.repositories.state(actor,project),teamProjects.has(project),await cursorPulls(core.pool,actor,project)));
+          html(res, 200, projectPage(projects, selected, randomUUID(),actor.accountRole!=='viewer',await core.repositories.state(actor,project),teamProjects.has(project),await cursorPulls(core.pool,actor,project),await projectStack(core.pool,actor,project),await projectFollow(core.pool,actor,project),Boolean(actor.accountRole)));
           return;
         }
         if (method === 'POST' && path === '/projects/' + project + '/missions') {
@@ -475,5 +479,5 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       if (isApi) json(res, problem.status, { error: { code: problem.code, message: problem.message } });
       else html(res, problem.status, errorPage(problem.message));
     }
-  });
+  }));
 }

@@ -1,5 +1,12 @@
 # Historique du Studio
 
+## 0.4.0-rc.4 · 26 novembre 2026
+
+- Le menu Projets conserve l’espace ouvert. Depuis une mission ou une photographie, il ouvre la collection correspondante du projet choisi. La fiche reste accessible directement.
+- Le Command Center réunit les priorités du compte. Chaque fiche permet de régler le suivi, de noter la prochaine action et de préparer une recette à partir des manifestes locaux.
+- Le loft affiche quatre décors isométriques illustrés et conserve sa caméra au changement de projet.
+- Les relevés Git reconnaissent les dossiers de travail liés au dépôt du Studio.
+
 ## 0.4.0-rc.3 · 26 novembre 2026
 
 - Database Explorer repère les définitions SQL, Supabase et Prisma dans les dossiers reliés. Un relevé automatique actualise les versions et le tableau des projets donne accès aux diagrammes.

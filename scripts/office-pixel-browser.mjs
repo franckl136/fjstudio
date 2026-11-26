@@ -41,6 +41,7 @@ async function probe(width,height,mode='atlas') {
     if(mode!=='sans-js')await page.locator('[data-texture="'+(mode==='sans-atlas'?'geometry':'atlas')+'"]').waitFor();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     if(mode==='atlas'){
+      await page.locator('[data-walls="illustrated"]').waitFor();
       await page.locator('.pixel-campus').screenshot({path:join(output,'plan-'+width+'.png')});
       await first.evaluate(el=>{window.firstResident=el;});
       await page.getByRole('link',{name:/^Café/}).click();

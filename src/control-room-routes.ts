@@ -1,3 +1,4 @@
+import {projectStack,resumeBrief} from './project-stack.ts';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Pool } from 'pg';
@@ -79,18 +80,18 @@ function specificFields(purpose:keyof typeof missionPurposes, details:Record<str
   return Object.entries(purposeFields[purpose]).map(([key,label])=>
     `<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(details[key]??'')}"></label>`).join('');
 }
-function briefForm(path: string, m?: ControlMission,requested?:string|null) {
+function briefForm(path: string, m?: ControlMission,requested?:string|null,seed?:ReturnType<typeof resumeBrief>) {
   const purpose=(m?.purpose??requested??'documentation') as keyof typeof missionPurposes;
   if(!Object.hasOwn(missionPurposes,purpose)) invalid('Finalité inconnue.');
   return `<form method="post" action="${e(path)}">${hidden('commandKey', randomUUID())}${m ? hidden('revision', m.revision) : ''}
     ${hidden('purpose',purpose)}<p><strong data-purpose-title>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
-    <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? '')}"></label>
-    <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? '')}</textarea></label>
-    <label>Contraintes<textarea maxlength="1200" name="constraints">${e(m?.constraints_text ?? '')}</textarea></label>
+    <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? seed?.objective ?? '')}"></label>
+    <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? seed?.scope ?? '')}</textarea></label>
+    <label>Contraintes<textarea maxlength="1200" name="constraints">${e(m?.constraints_text ?? seed?.constraints ?? '')}</textarea></label>
     <div data-brief-fields>${specificFields(purpose,m?.brief_details)}</div>
-    <label><span data-source-label>${e(sourceLabels[purpose])}</span><textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
+    <label><span data-source-label>${e(sourceLabels[purpose])}</span><textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? seed?.document ?? '')}</textarea></label>
     <label>Ordre du travail<select name="planMode"><option value="parallel">Index et critères en parallèle</option><option value="sequential"${m?.plan_mode==='sequential'?' selected':''}>Indexer, puis vérifier les critères</option></select></label>
-    <label>Expressions attendues, une par ligne<textarea required maxlength="1932" name="criteria">${e(m?.criteria.join('\n') ?? '')}</textarea></label>
+    <label>Expressions attendues, une par ligne<textarea required maxlength="1932" name="criteria">${e((m?.criteria??seed?.criteria)?.join('\n') ?? '')}</textarea></label>
     <label>Décision avant exécution<select name="risk"><option value="normal">Plan standard</option>
       <option value="review"${m?.risk === 'review' ? ' selected' : ''}>Approbation opérateur requise</option></select></label>
     <label>Durée maximale en minutes<input required type="number" min="1" max="60" name="durationMinutes" value="${m?.duration_minutes ?? 15}"></label>
@@ -236,11 +237,15 @@ export async function controlRoomRoute(
           <span class="badge">${e(labels[m.status])}</span></li>`,
           )
           .join('');
-        const selected=url.searchParams.get('purpose')??'documentation';
+        const projectList=await projects(pool,actor);
+        const wantsResume=url.searchParams.get('modele')==='reprise' && actor.accountRole!=='viewer';
+        const stack=wantsResume?await projectStack(pool,actor,project):null;
+        const seed=stack?.files.length?resumeBrief(projectList.find(p=>p.id===project)?.name??project,stack):undefined;
+        const selected=url.searchParams.get('purpose')??(seed?'test':'documentation');
         const composer=actor.accountRole==='viewer'?'':`<section class="panel" id="brief"><h2>Créer une mission</h2>
-          <form class="filters brief-selector" method="get" action="${root}#brief"><label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([key,title])=>
+          <form class="filters brief-selector" method="get" action="${root}#brief">${seed?hidden('modele','reprise'):''}<label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([key,title])=>
             `<option value="${key}"${key===selected?' selected':''}>${e(title)}</option>`).join('')}</select></label><button>Afficher les champs</button></form>
-          ${briefForm(root,undefined,selected)}
+          ${seed?'<p>Le dossier reprend les indices du code local. Complétez le compte rendu avant la revue.</p>':''}${briefForm(root,undefined,selected,seed)}
           ${(Object.keys(missionPurposes) as (keyof typeof missionPurposes)[]).map(key=>
             `<template data-purpose="${key}" data-source="${e(sourceLabels[key])}">${specificFields(key)}</template>`).join('')}
           <script src="/control-assets/brief.js" defer></script></section>`;
@@ -248,7 +253,7 @@ export async function controlRoomRoute(
           ${composer}
           <section class="panel" id="missions"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
           <details class="panel"><summary>Adaptateurs et limites</summary>${planTable()}<p>Deux travaux peuvent progresser en parallèle dans le projet. Chaque lecteur travaille sur le texte du contrat, en mémoire. Budget des moteurs externes&nbsp;: 0 €.</p></details>`;
-        io.html(res, 200, layout('Agent Control Room', panel, await projects(pool, actor), project, true));
+        io.html(res, 200, layout('Agent Control Room', panel, projectList, project, true));
       }
     }
     return true;

@@ -26,9 +26,10 @@ function href(m: Pick<MissionDigest,'engine'|'project_id'|'id'>) {
 }
 function projectName(data: Workspace, id: string) { return data.projects.find(p => p.id === id)?.name ?? id; }
 function scoped(data: Workspace, filter?: ProjectId) { return data.projects.filter(p => !filter || p.id === filter); }
-function projectFilter(path: string, data: Workspace, filter?: ProjectId) {
+function projectFilter(path: string, data: Workspace, filter?: ProjectId, query?:URLSearchParams) {
   if (!data.projects.length) return '';
   return `<form class="scope-filter" action="${path}" method="get"><label for="scope-project">Projet</label>
+    ${(path==='/office'?['salle','follow','liste']:['git']).map(key=>query?.has(key)?`<input type="hidden" name="${key}" value="${e(query.get(key)??'')}">`:'').join('')}
     <select id="scope-project" name="project"><option value="">Tous les projets autorisés</option>
     ${orderedProjects(data.projects).map(p => `<option value="${e(p.id)}" ${filter === p.id ? 'selected' : ''}>${e(p.name)}</option>`).join('')}</select>
     <button>Afficher</button></form>`;
@@ -63,11 +64,33 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
   const changedRepos=localRepos.filter(changed);
   const topRepos=changedRepos.slice().sort((a,b)=>b.worktree!.unstaged-a.worktree!.unstaged || a.project_id.localeCompare(b.project_id)).slice(0,4);
   const changedOnly=query.get('git')==='changed';
+  const interest=new Map(data.follows.map(item=>[item.project_id,item]));
+  const focusOptions=[['active','En activité'],['priority','Prioritaires'],['standby','En veille'],['all','Tous']] as const;
+  const focus=focusOptions.find(([key])=>key===query.get('focus'))?.[0]??(filter?'all':'active');
+  const matches=(id:string,key:string)=>{
+    const attention=interest.get(id)?.attention??'normal';
+    return key==='all'||(key==='active'?attention!=='standby':attention===key);
+  };
   const listQuery=new URLSearchParams(filter?{project:filter}:{});
+  listQuery.set('focus',focus);
+  const focusLinks=focusOptions.map(([key,label])=>{
+    const params=new URLSearchParams(listQuery);params.set('focus',key);
+    if(changedOnly)params.set('git','changed');
+    return `<a href="/workspace?${e(params.toString())}#portefeuille"${focus===key?' aria-current="true"':''}>${label} <b>${projects.filter(p=>matches(p.id,key)).length}</b></a>`;
+  }).join('');
+  const priorities=projects.filter(p=>matches(p.id,'priority'));
+  const priorityCards=priorities.map(p=>{
+    const note=interest.get(p.id)?.note;
+    const mission=data.missions.find(m=>m.project_id===p.id && ['ready','running','needs_approval','blocked'].includes(m.status));
+    const repo=localRepos.find(r=>r.project_id===p.id);
+    return `<article><h3><a href="/projects/${e(p.id)}#reprise">${e(p.name)}</a></h3>${note?'<p>'+e(note)+'</p>':''}
+      ${mission?`<a href="${e(href(mission))}">${e(mission.objective)}</a>`:repo?.observed_at?`<small>${e(repo.branch??'HEAD détachée')} · ${changed(repo)?'Changements locaux':'Arbre propre'}</small>`:'<small>Aucun relevé Git</small>'}</article>`;
+  }).join('');
+  const failedNames=projects.filter(p=>query.getAll('failedProject').includes(p.id)).map(p=>e(p.name)).join(', ');
   if(!changedOnly) listQuery.set('git','changed');
   const updated=query.get('updated'), unavailable=query.get('unavailable');
   const refreshNote=updated!==null && unavailable!==null && /^\d{1,5}$/.test(updated) && /^\d{1,5}$/.test(unavailable)
-    ? `<p role="status">${updated} relevé(s) actualisé(s)${unavailable!=='0'?' · '+unavailable+' indisponible(s)':''}.</p>`:'';
+    ? `<p role="status">${updated} relevé(s) actualisé(s)${unavailable!=='0'?' · '+unavailable+' indisponible(s)'+(failedNames?' · '+failedNames:''):''}.</p>`:'';
   const queuedTasks = data.tasks.filter(row => row.state === 'waiting' || row.state === 'ready').reduce((n,row) => n + row.total,0);
   const activeTasks = data.tasks.filter(row => row.state === 'running').reduce((n,row) => n + row.total,0);
   const presence=agentPresence(data.agents);
@@ -85,7 +108,7 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     alerts.push(`<li><span>${e(lab.verdict)}</span><a href="/projects/${e(lab.project_id)}/quality/${e(lab.id)}">${label(lab.profile)} · ${e(projectName(data,lab.project_id))}</a></li>`);
   }
   const now = data.capturedAt;
-  const shown=changedOnly?projects.filter(p=>changedRepos.some(r=>r.project_id===p.id)):projects;
+  const shown=projects.filter(p=>matches(p.id,focus) && (!changedOnly || changedRepos.some(r=>r.project_id===p.id)));
   const projectRows = shown.map(p => {
     const lab = data.labs.find(item => item.project_id === p.id);
     const repo = data.repositories.find(item => item.project_id === p.id);
@@ -103,19 +126,20 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
   }).join('');
   const maximum=Math.max(1,...topRepos.map(r=>r.worktree!.unstaged));
   return layout('Command Center',`<header class="product-heading cockpit-heading"><div><h1>Command Center</h1><p>${filter?e(projectName(data,filter)):'Vue du portefeuille'} · ${date(now)}</p></div>
-    ${projectFilter('/workspace',data,filter)}</header>
+    ${projectFilter('/workspace',data,filter,query)}</header>
     <div class="summary-strip">
       <div><span>Dossiers reliés en local</span><strong>${connected.size}</strong><a href="#portefeuille">${projects.length} ${projects.length>1?'projets suivis':'projet suivi'}</a></div>
       <div><span>Missions en cours</span><strong>${missionCount(data,'running')}</strong><a href="#missions">Voir les missions</a></div>
       <div><span>À approuver</span><strong>${approvals}</strong><a href="#attention">Voir les décisions</a></div>
       <div><span>Agents connectés</span><strong>${presence.connected}</strong><a href="/office${filter?'?project='+e(filter):''}">${presence.available} disponibles · ${presence.busy} occupés →</a></div>
     </div>
+    ${priorityCards?`<section class="panel priority-section"><h2>Mes projets prioritaires</h2><div class="priority-projects">${priorityCards}</div></section>`:''}
     <section id="portefeuille" class="panel"><header class="section-head"><h2>Portefeuille de projets</h2>
       ${'accountRole' in actor && actor.accountRole === 'admin' ? '<a class="button" href="/projects/new">Créer un projet</a>' : ''}</header>
-      <div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
+      <nav class="follow-filters" aria-label="Suivi des projets">${focusLinks}</nav><div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
       ${hasArchives?'<a href="/workspace/archives">Démonstrations archivées</a>':''}
       ${actor.accountRole!=='viewer' && data.repositories.some(r=>r.local_only)?`<form method="post" action="/workspace/observe">${filter?`<input type="hidden" name="project" value="${e(filter)}">`:''}<button>Actualiser les relevés Git</button></form>`:''}</div>${refreshNote}
-      ${shown.length ? `<div class="table-wrap"><table><thead><tr><th>Projet</th><th>État Git local</th><th>Missions ouvertes¹</th><th>Dernier contrôle</th><th>Ouvrir</th></tr></thead><tbody>${projectRows}</tbody></table></div><p class="field-help">¹ Prêtes, en cours, bloquées ou à approuver.</p>` : `<p>${changedOnly?'Aucun dépôt modifié dans ce périmètre.':'Aucun projet attribué.'}</p>`}</section>
+      ${shown.length ? `<div class="table-wrap"><table><thead><tr><th>Projet</th><th>État Git local</th><th>Missions ouvertes¹</th><th>Dernier contrôle</th><th>Ouvrir</th></tr></thead><tbody>${projectRows}</tbody></table></div><p class="field-help">¹ Prêtes, en cours, bloquées ou à approuver.</p>` : `<p>${changedOnly?'Aucun dépôt modifié dans ce périmètre.':'Aucun projet dans cette sélection.'}</p>`}</section>
     <div class="workspace-grid insight-grid"><section class="panel git-card"><header class="section-head"><h2>Changements locaux</h2><span>${changedRepos.length} / ${connected.size} dépôts</span></header>
       ${topRepos.length?`<ul class="git-bars">${topRepos.map(r=>`<li><a href="/projects/${e(r.project_id)}/repository">${e(projectName(data,r.project_id))}</a><progress aria-label="Fichiers modifiés hors index" value="${r.worktree!.unstaged}" max="${maximum}"></progress><strong>${r.worktree!.unstaged}</strong></li>`).join('')}</ul>
         <p class="field-help">Fichiers suivis modifiés hors index${changedRepos.length>topRepos.length?' · quatre premiers dépôts':''}</p>`:`<p>${localRepos.some(r=>r.observed_at)?'Les relevés ne signalent aucun changement local.':connected.size?'Premier relevé à effectuer.':'Aucun dossier relié en lecture locale dans ce périmètre.'}</p>`}
@@ -171,7 +195,7 @@ export function officePage(data: Workspace, query: URLSearchParams, filter?: Pro
   };
   const reviews=data.alerts.filter(m=>m.status==='needs_approval'||m.status==='blocked').slice(0,4);
   return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">${presence.connected} connectés · ${presence.available} disponibles · ${presence.busy} occupés · relevé ${date(data.capturedAt)}</p></div>
-    ${projectFilter('/office',data,filter)}</header>
+    ${projectFilter('/office',data,filter,query)}</header>
     <div class="office-controls"><a class="button" href="/office?${e(url.toString())}">${following ? 'Mettre en pause' : 'Reprendre le direct'}</a>
     <span id="office-live" role="status">${following ? 'Dernier relevé' : 'Suivi en pause'}</span>
     <a href="/office?${e(query.toString())}">Actualiser</a>

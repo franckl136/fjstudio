@@ -101,6 +101,19 @@ async function sourceFile(gitDir: string, name: string, optional = false) {
   }
 }
 
+async function studioCommonDirectory() {
+  const marker=join(builtin.directory,'.git');
+  if((await lstat(marker)).isDirectory())return realpath(marker);
+  const pointer=await sourceFile(builtin.directory,'.git');
+  const match=/^gitdir: ([^\r\n]+)$/.exec((await readFile(pointer!,'utf8')).trim());
+  if(!match || !isAbsolute(match[1]))configurationError();
+  const dir=await realpath(match[1]);
+  const common=await realpath(resolve(dir,(await readFile((await sourceFile(dir,'commondir'))!,'utf8')).trim()));
+  const back=(await readFile((await sourceFile(dir,'gitdir'))!,'utf8')).trim();
+  if(relative(join(common,'worktrees'),dirname(dir)) || relative(marker,resolve(dir,back)))configurationError();
+  return common;
+}
+
 async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: string): Promise<LocalState & {
   observed_at: Date; remote_state: RemoteState | null;
 }> {
@@ -118,15 +131,17 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
     let gitDir = marker, common = marker;
     const metadata = await lstat(marker);
     if (metadata.isFile()) {
-      if (relative(resolve(builtin.directory),root) !== '' || metadata.size>1024) configurationError();
+      if (metadata.size>1024) configurationError();
       const match = /^gitdir: ([^\r\n]+)$/.exec((await readFile(marker,'utf8')).trim());
       if (!match || !isAbsolute(match[1])) configurationError();
+      const trustedCommon=await studioCommonDirectory();
+      if(relative(join(trustedCommon,'worktrees'),dirname(resolve(match[1])))!=='')configurationError();
       gitDir = await realpath(match[1]);
       if (relative(resolve(match[1]),gitDir) !== '') configurationError();
       const pointer = await sourceFile(gitDir,'commondir');
       common = await realpath(resolve(gitDir,(await readFile(pointer!,'utf8')).trim()));
       const backref = await sourceFile(gitDir,'gitdir');
-      if (relative(join(common,'worktrees'),dirname(gitDir)) !== '' ||
+      if (relative(trustedCommon,common) !== '' || relative(join(common,'worktrees'),dirname(gitDir)) !== '' ||
           relative(marker,resolve(gitDir,(await readFile(backref!,'utf8')).trim())) !== '') configurationError();
     } else if (!metadata.isDirectory() || await sourceFile(gitDir,'commondir',true)) configurationError();
     const objects = join(common,'objects');

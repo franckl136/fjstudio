@@ -1,3 +1,5 @@
+import { projectDestination } from '../src/project-navigation.ts';
+import { projectFollow,saveProjectFollow } from '../src/project-follow.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { IncomingMessage, ServerResponse } from 'node:http';
@@ -162,4 +164,28 @@ test('Agent Office · bail actif, contact périmé, poste sans contact, pause du
   assert.match(idle.html,/Bail expiré/);
   assert.match(idle.html,/data-follow="on"/);
   assert.match((await get('/office?follow=0',operator)).html,/Suivi en pause/);
+});
+
+test('Changement de projet · conserver la salle et les filtres partagés, retirer les identifiants du projet précédent',()=>{
+  const cases=[
+    ['/projects/a/control/abc?task=secret','/projects/b/control'],
+    ['/projects/a/database/snap?source=abc','/projects/b/database'],
+    ['/database?source=abc','/projects/b/database'],
+    ['/office?project=a&salle=cafe&follow=0&station=unique','/office?project=b&salle=cafe&follow=0'],
+    ['/activity?project=a&page=3&days=7&type=mission','/activity?project=b&type=mission&days=7'],
+    ['/academy/docs/operations?project=a','/academy/docs/operations?project=b'],
+    ['/people','/projects/b'],
+  ];
+  for(const [address,expected] of cases)assert.equal(projectDestination('b',address),expected);
+});
+test('Suivi personnel · priorité, veille, conflit concurrent et cloisonnement',async()=>{
+  const input={attention:'priority',note:'Recette locale',revision:0};
+  await saveProjectFollow(pool,owner,'a',input);
+  await assert.rejects(saveProjectFollow(pool,owner,'a',input),{status:409});
+  assert.equal((await projectFollow(pool,owner,'a'))?.note,input.note);
+  assert.equal(await projectFollow(pool,operator,'a'),undefined);
+  await assert.rejects(saveProjectFollow(pool,viewer,'a',input),{status:403});
+  await saveProjectFollow(pool,owner,'a',{...input,attention:'standby',revision:1});
+  assert.equal((await projectFollow(pool,owner,'a'))?.revision,2);
+  await assert.rejects(projectFollow(pool,operator,'b'),{status:404});
 });

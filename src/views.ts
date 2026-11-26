@@ -1,3 +1,6 @@
+import { projectDestination } from './project-navigation.ts';
+import {followLabels,type Follow} from './project-follow.ts';
+import type {Stack} from './project-stack.ts';
 import { randomUUID } from 'node:crypto';
 import type { CursorPull } from './cursor-sessions.ts';
 import { academyGuide } from './academy-catalog.ts';
@@ -126,9 +129,10 @@ export function layout(
     <h2>Espaces</h2>
     ${navigation.map(([key,name,path,symbol]) => `<a class="workspace-link" href="${e(path)}"${activeModule === key || (!activeModule && title === name) ? ' aria-current="page"' : ''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('')}
     ${projects.length ? '<h2 class="project-label">Projets</h2>' : ''}
-    ${menu.map(project => `<a href="/projects/${e(project.id)}"${selected === project.id ? ' class="selected-project"' : ''}>
+    ${menu.map(project => `<a data-project-id="${e(project.id)}" href="${e(projectDestination(project.id))}"${selected === project.id ? ' class="selected-project"' : ''}>
       <span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>${e(project.name)}
     </a>`).join('')}
+    ${menu.some(p=>p.id===selected)?`<a class="project-home" href="/projects/${e(selected)}">Fiche du projet <span aria-hidden="true">↗</span></a>`:''}
   </nav>` : ''}
   <main id="contenu" class="content">${content}</main>
 </div>
@@ -154,8 +158,28 @@ export function errorPage(message: string): string {
     <p role="alert">${e(message)}</p><a href="/">Retour au Studio</a></section>`);
 }
 
+function resumeSection(project:Project, stack:Stack, follow:Follow|undefined, writable:boolean, personal:boolean){
+  const base='/projects/'+e(project.id),attention=follow?.attention??'normal';
+  const conditions=stack.status==='unavailable'?'Le dossier ne peut pas être lu actuellement.':stack.status==='unlinked'?'Aucun dossier local relié.':stack.status==='partial'?'Un manifeste est illisible. Le relevé est partiel.':'';
+  const checks=stack.checks.filter((v,i,all)=>all.findIndex(x=>x.name===v.name)===i);
+  return `<section class="panel resume-panel" id="reprise"><header class="section-head"><h2>Reprendre ce projet</h2>
+    ${personal?'<span class="focus-label '+attention+'">'+followLabels[attention]+'</span>':''}</header>
+    ${follow?.note?'<p class="resume-note">'+e(follow.note)+'</p>':''}
+    ${conditions?'<p>'+conditions+'</p>':''}
+    ${stack.tools.length?'<ul class="stack-tags" aria-label="Technologies déclarées">'+stack.tools.map(t=>'<li>'+e(t)+'</li>').join('')+'</ul>':''}
+    ${stack.storage.length?'<p>'+stack.storage.map(e).join(' · ')+'</p>':''}
+    ${stack.files.length?`<details><summary>Manifestes et contrôles déclarés</summary><p>${stack.files.map(f=>'<code>'+e(f)+'</code>').join(' · ')}</p>
+    ${checks.length?'<ul>'+checks.map(c=>'<li><code>'+e(c.name)+'</code> · '+e(c.file)+'</li>').join('')+'</ul>':''}</details>`:''}
+    <div class="actions">${writable&&stack.files.length?`<a class="button primary" href="${base}/control?modele=reprise#brief">Préparer une recette</a>`:''}
+    <a href="${base}/database">Sources de données</a><a href="/activity?project=${e(project.id)}">Journal du projet</a></div>
+    ${personal&&writable?`<details class="follow-edit"><summary>Modifier mon suivi</summary><form method="post" action="${base}/follow">
+    <input type="hidden" name="revision" value="${follow?.revision??0}">
+    <label>Place dans mon portefeuille<select name="attention">${Object.entries(followLabels).map(([key,title])=>'<option value="'+key+'"'+(key===attention?' selected':'')+'>'+title+'</option>').join('')}</select></label>
+    <label>Ma prochaine action<input name="note" maxlength="280" value="${e(follow?.note??'')}"></label>
+    <button>Enregistrer mon suivi</button></form></details>`:''}</section>`;
+}
 export function projectPage(projects: Projects, project: Project, commandKey: string, canOperate = true,
-  git?: Awaited<ReturnType<Core['repositories']['state']>>,team=false,cursor:CursorPull[]=[]): string {
+  git?: Awaited<ReturnType<Core['repositories']['state']>>,team=false,cursor:CursorPull[]=[],stack?:Stack,follow?:Follow,personal=false): string {
   const missionList = project.missions.length > 0
     ? `<ul class="mission-list">${project.missions.map(mission => `<li>
         <a href="/projects/${e(project.id)}/missions/${e(mission.id)}">
@@ -168,6 +192,7 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
   return layout(project.name, `
   <div class="heading"><div><h1>${e(project.name)}</h1></div>
     <a class="button" href="/projects/${e(project.id)}/settings">Profil du projet</a></div>
+  ${stack?resumeSection(project,stack,follow,canOperate,personal):''}
   ${git?.target?`<section class="panel project-signal"><div><h2>Dernier relevé Git</h2>
     ${git.observations[0]?`<strong class="branch-name">${e(git.observations[0].branch??'HEAD détachée')}</strong>
     <p><code>${e(git.observations[0].local_commit.slice(0,8))}</code> · ${date(git.observations[0].observed_at)}</p>
@@ -212,7 +237,7 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
       </form>
     </section>` : ''}
   </div>
-  ${team && !project.missions.length?'':`<section class="panel"><h2>Missions A1</h2>${missionList}</section>`}`, projects, project.id, true);
+  ${team && !project.missions.length?'':`<section class="panel" id="missions"><h2>Missions A1</h2>${missionList}</section>`}`, projects, project.id, true);
 }
 
 export function missionPage(projects: Projects, mission: Mission, canOperate = true): string {

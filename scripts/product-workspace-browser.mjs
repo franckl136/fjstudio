@@ -177,7 +177,7 @@ try {
   await submit(admin,admin.getByRole('button',{name:'Créer le projet'}));
   assert.equal(new URL(admin.url()).pathname,'/projects/atelier-navigateur/settings');
   const menuLinks='.sidebar a:has(.project-mark)';
-  const menuOrder=()=>admin.locator(menuLinks).evaluateAll(links=>links.map(link=>link.getAttribute('href').split('/').pop()));
+  const menuOrder=()=>admin.locator(menuLinks).evaluateAll(links=>links.map(link=>link.dataset.projectId));
   const expected=await menuOrder();
   assert.equal(expected[0],'atelier-navigateur');
   for(const address of ['/workspace','/office?project=b','/projects/a','/projects/b/control','/projects/a/knowledge','/projects/b/quality','/projects/a/lab']) {
@@ -186,7 +186,20 @@ try {
     const selector=admin.locator('#scope-project option[value]:not([value=""])');
     if(await selector.count()) assert.deepEqual(await selector.evaluateAll(options=>options.map(o=>o.value)),expected);
   }
-  results.projectNavigation='Ordre identique dans sept espaces et sélecteurs';
+  for(const [start,end] of [
+    ['/projects/a/control','/projects/b/control'],['/projects/a/knowledge','/projects/b/knowledge'],
+    ['/projects/a/lab','/projects/b/lab'],['/projects/a/database','/projects/b/database'],
+    ['/office?project=a&salle=cafe&follow=0','/office?project=b&salle=cafe&follow=0'],
+    ['/academy?project=a','/academy?project=b'],['/workspace','/workspace?project=b']
+  ]){
+    await admin.goto(origin+start);
+    await admin.locator('.sidebar [data-project-id="b"]').click();
+    assert.equal(admin.url(),origin+end);
+    assert.equal(await admin.locator('.project-home').getAttribute('href'),'/projects/b');
+  }
+  await admin.locator('.project-home').click();
+  assert.equal(admin.url(),origin+'/projects/b');
+  results.projectNavigation='Ordre commun, changement de projet dans sept espaces et retour à la fiche';
   await admin.goto(origin+'/office?project=b');
   assert.equal(await admin.locator('#cursor').count(),0);
   await admin.goto(origin+'/projects/a');
@@ -396,6 +409,29 @@ try {
   await screen(viewer,'command-center-mobile');
   await viewer.goto(origin+'/office?project=a');
   await screen(viewer,'office-mobile');
+  await writeFile(join(source,'package.json'),JSON.stringify({dependencies:{'@notionhq/client':'1.0'},scripts:{test:'synthetic-only'}}));
+  await admin.goto(origin+'/projects/a#reprise');
+  await admin.getByRole('link',{name:'Préparer une recette'}).click();
+  assert.match(await admin.locator('#brief [name=scope]').inputValue(),/Notion/);
+  assert.match(await admin.locator('#brief [name=document]').inputValue(),/package.json/);
+  await admin.goto(origin+'/projects/a#reprise');
+  await admin.getByText('Modifier mon suivi',{exact:true}).click();
+  await admin.locator('.follow-edit [name=attention]').selectOption('priority');
+  await admin.locator('.follow-edit [name=note]').fill('Vérifier les articles');
+  await submit(admin,admin.locator('.follow-edit button'));
+  await admin.goto(origin+'/workspace');
+  assert.match(await admin.locator('.priority-projects').innerText(),/Vérifier les articles/);
+  await operator.goto(origin+'/workspace');
+  assert.equal(await operator.locator('.priority-projects').count(),0);
+  await admin.goto(origin+'/projects/a#reprise');
+  await admin.getByText('Modifier mon suivi',{exact:true}).click();
+  await admin.locator('.follow-edit [name=attention]').selectOption('standby');
+  await submit(admin,admin.locator('.follow-edit button'));
+  await admin.goto(origin+'/workspace');
+  assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),0);
+  await admin.locator('.follow-filters').getByRole('link',{name:/En veille/}).click();
+  assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),1);
+  results.personalPortfolio='Priorité personnelle, note, veille et recette Notion depuis le manifeste';
   results.isolation = {differentProject:404,viewerMutation:403};
   results.viewports = ['1366×900','390×844'];
   results.browser = browser.version();

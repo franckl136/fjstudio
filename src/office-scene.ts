@@ -61,7 +61,7 @@ export function officeScene(data:OfficeData,stationLink:(d:Desk)=>string,query:U
     <button class="loft-expand" type="button" aria-pressed="false" hidden>⛶ Agrandir</button></header>
     <nav class="room-tabs" aria-label="Pièces du loft"><a data-camera="plan" href="${roomLink(null)}"${focus==='plan'?' aria-current="page"':''}>Plan complet</a>
     ${groups.map(room=>`<a data-camera="${room.id}" data-name="${e(room.name)}" data-purpose="${e(room.purpose)}" href="${roomLink(room.slug)}"${focus===room.id?' aria-current="page"':''}>${room.name} <span data-count="${room.id}">${room.members.length}</span></a>`).join('')}</nav>
-    <div class="pixel-campus"><div class="pixel-floor"><canvas width="760" height="412" data-floor-art aria-hidden="true"></canvas>
+    <div class="pixel-campus"><div class="pixel-floor"><canvas width="1520" height="824" data-floor-art aria-hidden="true"></canvas>
       <div class="loft-people">${groups.flatMap(room=>room.members.map((d,i)=>avatar(d,data,room.id,i,stationLink))).join('')}</div>
     </div></div>
     <div class="loft-presence"><div data-room-caption>${selected?`<strong>${selected.name}</strong> · ${selected.purpose}`:`<strong>${active.length} agent${active.length===1?'':'s'} en ligne</strong>`}</div>

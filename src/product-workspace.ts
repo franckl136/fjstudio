@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { Operator, ProjectId, Role } from './contracts.ts';
 import { assertProject, transaction } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
+import type { Follow } from './project-follow.ts';
 import { cursorPulls } from './cursor-sessions.ts';
 import { latestProjectActivity,readActivity } from './activity.ts';
 
@@ -135,7 +136,8 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
       ) o ON true WHERE r.project_id=ANY($1::text[]) ORDER BY r.project_id`,args)).rows;
     const cursorSessions=await cursorPulls(client,actor,filter);
     const lastActivity=await latestProjectActivity(client,ids);
-    return { capturedAt, projects, counts, missions, alerts, tasks, events, lastActivity, labs, proposals, agents, backup, repositories, cursorSessions };
+    const follows=(await client.query<Follow>('SELECT project_id,attention,note,revision FROM studio_project_follow WHERE account_id=$1 AND project_id=ANY($2::text[])',[actor.id,ids])).rows;
+    return { capturedAt, projects, counts, missions, alerts, tasks, events, lastActivity, labs, proposals, agents, backup, repositories, cursorSessions, follows };
   }, true);
 }
 
