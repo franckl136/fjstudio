@@ -23,6 +23,7 @@ export type ControlStatus =
   | 'cancelled';
 export type ControlBrief = {
   purpose?:string;
+  details?:Record<string,string>;
   planMode?:'parallel'|'sequential';
   objective: string;
   scope: string;
@@ -34,6 +35,7 @@ export type ControlBrief = {
 };
 export type ControlMission = {
   purpose:string;
+  brief_details:Record<string,string>;
   plan_mode:'parallel'|'sequential';
   id: string;
   project_id: ProjectId;
@@ -59,6 +61,13 @@ export type ControlMission = {
 const terminal = ['completed', 'failed', 'cancelled', 'blocked'];
 export const missionPurposes={analysis:'Analyse',development:'Développement',audit:'Audit',documentation:'Documentation',
   research:'Recherche',test:'Test',maintenance:'Maintenance',delivery:'Préparation de livraison'};
+export const purposeFields:Record<keyof typeof missionPurposes,Record<string,string>>={
+  analysis:{question:'Question à résoudre'},development:{component:'Composant à faire évoluer',compatibility:'Compatibilité à préserver'},
+  audit:{standard:'Référentiel de contrôle'},documentation:{audience:'Lecteurs du document'},
+  research:{question:'Question de recherche',sources:'Sources de référence'},test:{scenario:'Scénario à reproduire',expected:'Résultat attendu'},
+  maintenance:{component:'Composant concerné',rollback:'Procédure de retour'},delivery:{release:'Version candidate',approval:'Validation attendue'},
+};
+export const purposeKeys=[...new Set(Object.values(purposeFields).flatMap(Object.keys))];
 export function missionPlan(mode:'parallel'|'sequential') {
   return documentPlan.map(task=>mode==='sequential'&&task.key==='coverage'?{...task,dependencies:['structure' as const]}:task);
 }
@@ -93,7 +102,16 @@ export function readBrief(input: JsonObject): ControlBrief {
   field(input.document, 10000);
   if(input.purpose!==undefined && (typeof input.purpose!=='string'||!Object.hasOwn(missionPurposes,input.purpose))) invalid('Finalité de mission inconnue.');
   if(input.planMode!==undefined && input.planMode!=='parallel' && input.planMode!=='sequential') invalid('Ordonnancement inconnu.');
+  const allowed=purposeFields[(input.purpose??'documentation') as keyof typeof missionPurposes];
+  const details:Record<string,string>={};
+  for (const key of purposeKeys) {
+    if (!Object.hasOwn(input,key)) continue;
+    if (!Object.hasOwn(allowed,key)) invalid('Ce renseignement ne correspond pas à la finalité du dossier.');
+    const value=field(input[key],360,true);
+    if(value) details[key]=value;
+  }
   return {
+    ...(Object.keys(details).length?{details}:{}),
     ...(typeof input.purpose==='string'?{purpose:input.purpose}:{}),
     ...(input.planMode?{planMode:input.planMode}:{}),
     objective: field(input.objective, 240),
@@ -223,7 +241,7 @@ async function insertMission(
   const id = randomUUID();
   await c.query(
     `INSERT INTO control_missions(id,project_id,objective,scope,constraints_text,document,criteria,risk,duration_minutes,status,
-    source_sha256,contract_version,parent_id,created_by,purpose,plan_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15)`,
+    source_sha256,contract_version,parent_id,created_by,purpose,plan_mode,brief_details) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15,$16)`,
     [
       id,
       project,
@@ -238,7 +256,7 @@ async function insertMission(
       controlVersion,
       parent,
       actor.id,
-      b.purpose??'documentation',b.planMode??'parallel',
+      b.purpose??'documentation',b.planMode??'parallel',b.details??{},
     ],
   );
   await recordControl(c, project, id, actor.id, 'mission.created', { parentId: parent });
@@ -283,16 +301,17 @@ export function commandMission(
           criteria: m.criteria,
           risk: m.risk,
           durationMinutes: m.duration_minutes,
-          purpose:m.purpose,planMode:m.plan_mode,
+          purpose:m.purpose,planMode:m.plan_mode,details:m.brief_details,
         },
         id,
       );
     }
     if (action === 'edit' && (m.status === 'draft' || m.status === 'needs_approval')) {
-      const b = readBrief(fields);
+      const b = readBrief({...fields,purpose:fields.purpose??m.purpose});
+      const keepDetails=b.purpose===m.purpose && !Object.keys(fields).some(k=>Object.hasOwn(purposeFields[m.purpose as keyof typeof missionPurposes],k));
       await c.query(
         `UPDATE control_missions SET objective=$3,scope=$4,constraints_text=$5,document=$6,criteria=$7,risk=$8,
-        duration_minutes=$9,source_sha256=$10,purpose=$11,plan_mode=$12,context='[]',status='draft',updated_at=clock_timestamp(),revision=revision+1 WHERE project_id=$1 AND id=$2`,
+        duration_minutes=$9,source_sha256=$10,purpose=$11,plan_mode=$12,brief_details=$13,context='[]',status='draft',updated_at=clock_timestamp(),revision=revision+1 WHERE project_id=$1 AND id=$2`,
         [
           project,
           id,
@@ -304,7 +323,7 @@ export function commandMission(
           b.risk,
           b.durationMinutes,
           documentHash(b.document),
-          b.purpose??m.purpose,b.planMode??m.plan_mode,
+          b.purpose??m.purpose,b.planMode??m.plan_mode,keepDetails?m.brief_details:(b.details??{}),
         ],
       );
       await recordControl(c, project, id, actor.id, 'brief.revised', {

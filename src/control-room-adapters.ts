@@ -48,6 +48,7 @@ export interface ControlInput {
   objective: string;
   scope: string;
   constraints: string;
+  briefDetails?:Record<string,string>;
   document: string;
   criteria: string[];
   sourceSha256: string;

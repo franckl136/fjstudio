@@ -18,7 +18,7 @@ import {
   createControlMission,
   invalid,
   listControlMissions,
-  missionPurposes,
+  missionPurposes,purposeFields,purposeKeys,
   type ControlMission,
 } from './control-room.ts';
 import { claimControl, completeControl, heartbeatControl } from './control-room-queue.ts';
@@ -30,7 +30,7 @@ type Tools = {
   html(res: ServerResponse, status: number, page: string): void;
   redirect(res: ServerResponse, path: string): void;
 };
-const fieldNames = ['objective', 'scope', 'constraints', 'document', 'criteria', 'risk', 'durationMinutes','purpose','planMode'];
+const fieldNames = ['objective', 'scope', 'constraints', 'document', 'criteria', 'risk', 'durationMinutes','purpose','planMode',...purposeKeys];
 const labels: Record<string, string> = {
   draft: 'Brouillon',
   needs_approval: 'Validation attendue',
@@ -83,6 +83,7 @@ function briefForm(path: string, m?: ControlMission,requested?:string|null) {
     <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? '')}"></label>
     <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? '')}</textarea></label>
     <label>Contraintes<textarea maxlength="1200" name="constraints">${e(m?.constraints_text ?? '')}</textarea></label>
+    ${Object.entries(purposeFields[purpose]).map(([key,label])=>`<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(m?.brief_details[key]??'')}"></label>`).join('')}
     <label>${e(sourceLabels[purpose])}<textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
     <label>Ordre du travail<select name="planMode"><option value="parallel">Index et critères en parallèle</option><option value="sequential"${m?.plan_mode==='sequential'?' selected':''}>Indexer, puis vérifier les critères</option></select></label>
     <label>Expressions attendues, une par ligne<textarea required maxlength="1932" name="criteria">${e(m?.criteria.join('\n') ?? '')}</textarea></label>
@@ -167,6 +168,7 @@ function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetai
     ${verdict && coverage?`<section class="panel"><h2>Résultat de la relecture · ${e(verdict)}</h2>
       <ul>${coverage.map(c=>`<li>${e(c.criterion)} · ${c.covered?'retrouvé, ligne(s) '+e(c.lines.join(', ')):'absent du document'}</li>`).join('')}</ul></section>`:''}
     <section class="panel"><h2>Contrat de mission</h2><p>${e(m.scope)}</p><p>${e(m.constraints_text)}</p>
+    ${Object.keys(m.brief_details).length?`<dl class="facts">${Object.entries(m.brief_details).map(([key,value])=>`<dt>${e(purposeFields[m.purpose as keyof typeof missionPurposes][key])}</dt><dd>${e(value)}</dd>`).join('')}</dl>`:''}
     <p>Créée par ${e(m.created_by)} · révision ${m.revision} · budget 0 € · ${m.duration_minutes} min${m.deadline_at ? ' · échéance ' + date(m.deadline_at) : ''}</p>
     ${m.parent_id ? `<p><a href="${root}/${e(m.parent_id)}">Mission d’origine</a></p>` : ''}
     ${m.reason ? `<p>Motif · ${e(m.reason)}</p>` : ''}<h3>Critères</h3><ul>${m.criteria.map((c) => '<li>' + e(c) + '</li>').join('')}</ul>

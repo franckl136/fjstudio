@@ -137,6 +137,7 @@ async function assignment(c: PoolClient, a: Attempt): Promise<ControlAssignment>
       objective: m.objective,
       scope: m.scope,
       constraints: m.constraints_text,
+      ...(Object.keys(m.brief_details).length?{briefDetails:m.brief_details}:{}),
       criteria: m.criteria,
       sourceSha256: m.source_sha256,
       document: m.document,
