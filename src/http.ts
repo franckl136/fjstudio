@@ -1,4 +1,4 @@
-import { navigationRequest } from './project-navigation.ts';
+import { sidebarPreferences,navigationRequest } from './project-navigation.ts';
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { productReviewRoute } from './product-review-routes.ts';
 import { academyRoute } from './academy-routes.ts';
@@ -41,6 +41,7 @@ const cookieName = 'a1_operator';
 const moduleFiles:Record<string,[string,string]>={
   '/activity-assets/journal.js':['activity-journal.js','text/javascript; charset=utf-8'],
   '/activity-assets/journal.css':['activity-journal.css','text/css; charset=utf-8'],
+  '/navigation-assets/groups.js':['project-groups.js','text/javascript; charset=utf-8'],
   '/form-assets/guard.js':['form-guard.js','text/javascript; charset=utf-8'],
   '/form-assets/drafts.js':['form-drafts.js','text/javascript; charset=utf-8'],
   '/lab-assets/selection.js':['lab-selection.js','text/javascript; charset=utf-8'],
@@ -445,6 +446,13 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         res.setHeader('Set-Cookie', cookieName + '=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
         redirect(res, '/');
         return;
+      }
+      if(method==='GET' && !(path==='/office' && url.searchParams.get('loft')==='1')){
+        const rows=actor.accountRole?(await core.pool.query<{project_id:string;attention:string}>(
+          'SELECT project_id,attention FROM studio_project_follow WHERE account_id=$1 AND project_id=ANY($2::text[])',[actor.id,actor.projectIds])).rows:[];
+        sidebarPreferences.enterWith({account:hash(actor.id),statuses:new Map(rows.map(r=>[r.project_id,r.attention]))});
+        const policy=String(res.getHeader('Content-Security-Policy'));
+        if(!policy.includes('script-src'))res.setHeader('Content-Security-Policy',policy+"; script-src 'self'");
       }
       if (await studioRoute(req,res,url,actor,false,session.actor.projectIds.some(id=>archives.includes(id)))) return;
       if (path === '/login' && method === 'GET') {

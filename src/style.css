@@ -289,6 +289,8 @@ body { background-color:var(--paper); background-image:radial-gradient(#83918038
 .lab-scope[hidden] {display:none;}
 #portefeuille td small,#portefeuille th small{display:block;margin-top:.3rem;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
 
+.project-group > summary {cursor:pointer;color:#eef4e9;font-weight:650;padding:.55rem .4rem;}
+.project-group > summary small {font-variant-numeric:tabular-nums;margin-left:.3rem;}
 .nav-mobile {display:none;}
 .sidebar a.global-project[aria-current] {background:#33594e;color:#fff;}
 .scope-caption {margin:.8rem 0 .4rem;color:#35544b;font-weight:600;}
@@ -296,16 +298,17 @@ body { background-color:var(--paper); background-image:radial-gradient(#83918038
   .sidebar {display:block;overflow:visible;}
   .nav-desktop {display:none;}
   .nav-mobile {display:grid;grid-template-columns:1fr 1fr;gap:.5rem;color:#fff;}
-  .nav-mobile details {min-width:0;position:relative;}
-  .nav-mobile summary {cursor:pointer;min-height:44px;border:1px solid #78978c;border-radius:.4rem;padding:.3rem .55rem;list-style:none;}
-  .nav-mobile summary::after {content:'▾';position:absolute;right:.6rem;top:.5rem;}
-  .nav-mobile summary small,.nav-mobile summary strong {display:block;line-height:1.35;margin-right:.75rem;overflow-wrap:anywhere;}
-  .nav-mobile summary {color:#fff;background:#20453c;}
-  .nav-mobile summary strong {color:#fff;}
-  .nav-mobile summary small {font-size:.77rem;color:#d7e8df;}
-  .nav-mobile details>div {position:absolute;z-index:20;top:100%;left:0;right:0;min-width:min(16rem,85vw);padding:.4rem;background:#20453c;border:1px solid #78978c;border-radius:.4rem;box-shadow:0 4px 14px #102e2930;}
-  .nav-mobile details:last-child>div {left:auto;right:0;}
-  .nav-mobile details a {min-height:44px;white-space:normal;}
+  .nav-mobile > details {min-width:0;position:relative;}
+  .nav-mobile > details > summary {cursor:pointer;min-height:44px;border:1px solid #78978c;border-radius:.4rem;padding:.3rem .55rem;list-style:none;}
+  .nav-mobile > details > summary::after {content:'▾';position:absolute;right:.6rem;top:.5rem;}
+  .nav-mobile > details > summary small,.nav-mobile > details > summary strong {display:block;line-height:1.35;margin-right:.75rem;overflow-wrap:anywhere;}
+  .nav-mobile > details > summary {color:#fff;background:#20453c;}
+  .nav-mobile > details > summary strong {color:#fff;}
+  .nav-mobile > details > summary small {font-size:.77rem;color:#d7e8df;}
+  .nav-mobile > details>div {position:absolute;z-index:20;top:100%;left:0;right:0;min-width:min(16rem,85vw);padding:.4rem;background:#20453c;border:1px solid #78978c;border-radius:.4rem;box-shadow:0 4px 14px #102e2930;}
+  .nav-mobile > details:last-child>div {left:auto;right:0;}
+  .nav-mobile > details a {min-height:44px;white-space:normal;}
+  .nav-mobile > details > div {max-height:65vh;overflow-y:auto;}
   #portefeuille .table-wrap {overflow:visible;}
   #portefeuille table,#portefeuille tbody,#portefeuille tr,#portefeuille th[scope=row],#portefeuille td {display:block;width:auto;min-width:0;}
   #portefeuille table {border:0;}

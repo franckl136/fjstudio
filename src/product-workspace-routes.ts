@@ -94,7 +94,8 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     if (api) {
       io.json(res,200,path === '/office' ? {capturedAt:data.capturedAt,agents:data.agents,cursorSessions:data.cursorSessions} : data);
     } else if (path === '/office') {
-      io.html(res,200,officePage(data,url.searchParams,project));
+      const menu=visibleActor.projectIds.length===actor.projectIds.length?data.projects:await listWorkspaceProjects(pool,actor);
+      io.html(res,200,officePage(data,url.searchParams,project,menu));
     } else io.html(res,200,workspacePage(data,actor,project,await activityWeek(pool,actor,project),url.searchParams,io.hasArchives));
     return true;
   }

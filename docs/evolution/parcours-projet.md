@@ -12,6 +12,8 @@ Ouvrez le Command Center et choisissez votre projet. Le nombre de postes connect
 
 Dans **À examiner**, ouvrez directement la mission bloquée, la validation attendue, le dernier contrôle en échec ou le poste hors ligne. La fiche du projet indique sa description et renvoie aux relevés Git, au journal, à l’architecture et aux automatisations. La santé affichée se rapporte aux missions et au dernier passage effectivement connu.
 
+Dans le menu Projets, les rubriques **Prioritaires**, **Suivis** et **Inactifs** regroupent les projets du compte par ordre alphabétique. Cliquez sur le titre d’une rubrique pour la replier ou la déplier. Ce choix est mémorisé dans ce navigateur.
+
 Pour alléger votre Agent Office, ouvrez la fiche du projet puis **Modifier mon suivi**. Choisissez **Inactif (en veille)** et enregistrez. Le réglage est personnel. La vue globale du Loft masque ces projets, y compris lors du rafraîchissement en direct. **Inclure les projets inactifs** les réaffiche temporairement. Le filtre **En veille** du portefeuille permet de retrouver leur fiche et de rétablir **Suivi** ou **Prioritaire**.
 
 ## Du besoin au résultat

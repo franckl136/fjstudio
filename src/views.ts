@@ -1,4 +1,4 @@
-import { activeNavigationSpace,globalDestination,projectDestination } from './project-navigation.ts';
+import { sidebarPreferences,activeNavigationSpace,globalDestination,projectDestination } from './project-navigation.ts';
 import {followLabels,type Follow} from './project-follow.ts';
 import type {Stack} from './project-stack.ts';
 import { randomUUID } from 'node:crypto';
@@ -107,9 +107,15 @@ export function layout(
   const spaceLinks = navigation.map(([key,name,path,symbol])=>`<a class="workspace-link" href="${e(path)}"${pageSpace===key?' aria-current="page"':''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('');
   const globalLink = `<a class="global-project" href="${e(globalDestination(pageSpace))}"${current?'':' aria-current="true"'}>Vue globale</a>`;
   const homeLink = current?`<a class="project-home" href="/projects/${e(current.id)}">Fiche du projet <span aria-hidden="true">↗</span></a>`:'';
+  const preferences=sidebarPreferences.getStore();
   function projectLinks(mobile=false){
-    return menu.map(project=>`<a ${mobile?'data-mobile-project':'data-project-id'}="${e(project.id)}" href="${e(projectDestination(project.id))}"${current?.id===project.id?' class="selected-project" aria-current="true"':''}>
+    return [['priority','Prioritaires'],['normal','Suivis'],['standby','Inactifs']].map(([status,title])=>{
+      const members=menu.filter(p=>(preferences?.statuses.get(p.id)??'normal')===status);
+      if(!members.length)return '';
+      const links=members.map(project=>`<a ${mobile?'data-mobile-project':'data-project-id'}="${e(project.id)}" href="${e(projectDestination(project.id))}"${current?.id===project.id?' class="selected-project" aria-current="true"':''}>
       ${mobile?'':`<span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>`}${e(project.name)}</a>`).join('');
+      return `<details class="project-group" data-group="${status}"${status!=='standby'||members.some(p=>p.id===selected)?' open':''}><summary>${title} <small>${members.length}</small></summary>${links}</details>`;
+    }).join('');
   }
   return `<!doctype html>
 <html lang="fr">
@@ -131,7 +137,7 @@ export function layout(
   </div>
 </header>
 <div class="frame ${authenticated ? '' : 'without-sidebar'}">
-  ${authenticated ? `<nav aria-label="Navigation du Studio" class="sidebar">
+  ${authenticated ? `<nav aria-label="Navigation du Studio" class="sidebar" data-preferences="${e(preferences?.account??'')}"><script defer src="/navigation-assets/groups.js"></script>
     <div class="nav-desktop">
       <h2>Espaces</h2>${spaceLinks}
       <h2 class="project-label">Projets</h2>${globalLink}${projectLinks()}${homeLink}

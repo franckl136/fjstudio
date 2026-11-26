@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 // Each server-rendered menu uses the address of its own HTTP request.
+export const sidebarPreferences=new AsyncLocalStorage<{account:string;statuses:Map<string,string>}>();
 export const navigationRequest = new AsyncLocalStorage<string>();
 const spaces = new Set(['control','knowledge','quality','lab','database','architecture','automations','repository','settings']);
 

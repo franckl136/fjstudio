@@ -192,7 +192,7 @@ function station(desk: Desk, data: Workspace, following:boolean, filter?: Projec
     <span class="station-text"><strong>${e(deskName(desk))}</strong><small>${label(desk.role)} · ${e(projectName(data,desk.projectId))}</small>${badge(desk.state)}
     ${task?'<span class="station-task">'+label(task.task)+'</span>':''}</span></a>`;
 }
-export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId) {
+export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId, menu=data.projects) {
   const presence=agentPresence(data.agents);
   const includeInactive=query.get('inactifs')==='1';
   const visibility=new URLSearchParams(query);
@@ -231,7 +231,7 @@ export function officePage(data: Workspace, query: URLSearchParams, filter?: Pro
         ${selected.records.length ? `<ul class="work-feed">${selected.records.map(record => `<li><div><a href="${e(href({engine:record.engine,project_id:record.project_id,id:record.mission_id}))}">${e(record.objective)}</a>
         <small>${label(record.task)} · ${date(record.began)}</small></div>${badge(record.state)}</li>`).join('')}</ul>` : '<p>Aucune tentative attribuée à ce poste.</p>'}`
         : '<p>Sélectionnez un poste pour consulter son dernier contact, ses missions et ses résultats.</p>'}</section>
-    <script src="/office-assets/live.js" defer></script>`,data.projects,filter,true,'office');
+    <script src="/office-assets/live.js" defer></script>`,menu,filter,true,'office');
 }
 
 type ProfileData = Awaited<ReturnType<typeof profileDetail>>;

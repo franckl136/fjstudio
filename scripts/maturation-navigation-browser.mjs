@@ -9,11 +9,11 @@ export async function verifyWorkspaceNavigation(page,origin,screen){
     await page.setViewportSize({width,height:width===390?844:900});
     const mobile=width===390;
     async function project(id){
-      if(mobile)await sidebar.locator('.nav-mobile details').first().locator('summary').click();
+      if(mobile)await sidebar.locator('.nav-mobile > details').first().locator(':scope > summary').click();
       await sidebar.locator(mobile?'[data-mobile-project="'+id+'"]':'[data-project-id="'+id+'"]').click();
     }
     async function space(name){
-      if(mobile)await sidebar.locator('.nav-mobile details').last().locator('summary').click();
+      if(mobile)await sidebar.locator('.nav-mobile > details').last().locator(':scope > summary').click();
       await sidebar.getByRole('link',{name,exact:true}).click();
     }
     await page.goto(origin+'/workspace');
@@ -27,7 +27,7 @@ export async function verifyWorkspaceNavigation(page,origin,screen){
         await space(label);assert.equal(page.url(),origin+route);
       }
     }
-    if(mobile)await sidebar.locator('.nav-mobile details').first().locator('summary').click();
+    if(mobile)await sidebar.locator('.nav-mobile > details').first().locator(':scope > summary').click();
     await sidebar.getByRole('link',{name:'Vue globale',exact:true}).click();
     assert.equal(new URL(page.url()).pathname,'/espaces/control');
     await space('Command Center');
@@ -38,7 +38,7 @@ export async function verifyWorkspaceNavigation(page,origin,screen){
       const navWidths=await sidebar.evaluate(el=>[el.scrollWidth,el.clientWidth]);
       assert(navWidths[0]<=navWidths[1]+1);
       for (const i of [0,1]){
-        const summary=sidebar.locator('.nav-mobile summary').nth(i);
+        const summary=sidebar.locator('.nav-mobile > details > summary').nth(i);
         await summary.focus();await page.keyboard.press('Enter');
         assert(await summary.locator('..').evaluate(el=>el.open));
         await page.keyboard.press('Tab');
