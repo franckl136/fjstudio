@@ -1,0 +1,43 @@
+{
+  "id": "f56e72a4-8e31-49b1-94d1-f8210e08511e",
+  "report": {
+    "tests": {
+      "exitCode": 0,
+      "elapsedMs": 99413,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "7c0915b000ac87b86d5577dd92579f21237a2cdf2efa5cb5f74b1d64d7dc0026"
+    },
+    "counts": {
+      "fail": 0,
+      "pass": 101,
+      "todo": 0,
+      "tests": 101,
+      "suites": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    "profile": "studio-npm-v1",
+    "versions": {
+      "git": "2.56.1.windows.1",
+      "npm": "11.19.1",
+      "node": "24.22.3",
+      "typescript": "5.9.3"
+    },
+    "startedAt": "2026-11-26T09:09:10.773Z",
+    "treeAfter": "clean",
+    "typecheck": {
+      "exitCode": 0,
+      "elapsedMs": 2720,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "275b5a0544f7a3d88337779df93b2148389c503d64871f400f3f0c3204b7e198"
+    },
+    "finishedAt": "2026-11-26T09:10:52.956Z",
+    "treeBefore": "clean",
+    "commitAfter": "05678eba203a2b981395f8fa9554b5c54564ee47",
+    "commitBefore": "05678eba203a2b981395f8fa9554b5c54564ee47"
+  },
+  "report_sha": "b3b5b9bb48d7ca2e840fc6db79852aa8722856ca62fb510a56ee070fed3ab386",
+  "verdict": "PASS",
+  "commit_sha": "05678eba203a2b981395f8fa9554b5c54564ee47",
+  "finished_at": "2026-11-26T09:10:52.956Z"
+}

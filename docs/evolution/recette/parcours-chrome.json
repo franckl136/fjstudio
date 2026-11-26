@@ -1,0 +1,48 @@
+{
+  "authenticated": [
+    "admin",
+    "operator",
+    "viewer"
+  ],
+  "academy": {
+    "wrongAnswer": true,
+    "resume": true,
+    "practicalProject": true,
+    "foreignKey": true,
+    "privateProgress": true,
+    "readOnlyMobile": true
+  },
+  "projectNavigation": "Ordre identique dans sept espaces et sélecteurs",
+  "cursor": {
+    "drafts": 1,
+    "projectScope": true,
+    "fullScreen": true
+  },
+  "knowledge": "validated revision included in mission",
+  "mission": {
+    "state": "completed",
+    "parallelAgents": 2,
+    "checkpoints": 3,
+    "followPaused": true
+  },
+  "quality": "PASS",
+  "preview": "PASS",
+  "schemaEvidence": {
+    "staticFinding": true,
+    "journalLinked": true,
+    "revocationPropagated": true
+  },
+  "gitReview": "Lecture des reçus disponible, capture refusée sur la branche hors politique",
+  "a1_nominal": "Contrôles réussis",
+  "a1_incorrect": "Contrôle négatif",
+  "isolation": {
+    "differentProject": 404,
+    "viewerMutation": 403
+  },
+  "viewports": [
+    "1366×900",
+    "390×844"
+  ],
+  "browser": "158.0.8127.89",
+  "durationMs": 18444
+}
