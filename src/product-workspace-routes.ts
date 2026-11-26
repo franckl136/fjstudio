@@ -6,6 +6,7 @@ import { changeProfile, createWorkspaceProject, listWorkspaceProjects, profileDe
 import { activityWeek, readWorkspace, type DeskIdentity } from './product-workspace.ts';
 import type { Repositories } from './repositories.ts';
 import { officePage, profilePage, workspacePage } from './product-workspace-views.ts';
+import { readActivity,activityPage,activityFilter } from './activity.ts';
 
 interface WorkspaceTools {
   body(req: IncomingMessage, kind:'json'|'form'): Promise<JsonObject>;
@@ -20,6 +21,14 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
   actor: Operator, api: boolean, io: WorkspaceTools): Promise<boolean> {
   const path = api ? url.pathname.slice(4) : url.pathname;
   const get = req.method === 'GET';
+  if(path==='/activity' && get) {
+    const project=url.searchParams.get('project')||undefined;
+    if(project) assertProject(actor,project);
+    const data=await readActivity(pool,actor,project,activityFilter(url.searchParams));
+    if(api) io.json(res,200,data);
+    else io.html(res,200,activityPage(data,await listWorkspaceProjects(pool,actor),project,url.searchParams));
+    return true;
+  }
   if (path === '/workspace/observe' && !api) {
     if(req.method!=='POST') throw new DomainError(405,'method','Méthode indisponible.');
     if(actor.accountRole==='viewer' || !io.repositories) throw new DomainError(403,'read_only','Accès opérateur requis.');

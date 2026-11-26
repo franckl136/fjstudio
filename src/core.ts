@@ -526,21 +526,24 @@ export class Core {
   async agentActivity(actor: Operator) {
     return (await this.pool.query<{
       project_id:ProjectId; runner_id:string; role:Role; last_seen:Date|null; fresh:boolean;
-      mission_id:string|null; attempts:number; completed:number;
-    }>(`WITH identities AS (
-          SELECT project_id,runner_id,role FROM runner_contacts WHERE project_id=ANY($1)
-          UNION SELECT project_id,runner_id,role FROM attempts WHERE project_id=ANY($1)
-        )
-        SELECT i.project_id,i.runner_id,i.role,c.last_seen,
-          COALESCE(c.last_seen > now()-interval '20 seconds',false) AS fresh,
-          (array_agg(a.mission_id ORDER BY a.started_at DESC)
-            FILTER (WHERE a.status='active' AND a.lease_until>now()))[1] AS mission_id,
-          count(a.id)::int AS attempts,
-          count(a.id) FILTER (WHERE a.status='completed')::int AS completed
-        FROM identities i LEFT JOIN runner_contacts c USING(project_id,runner_id,role)
-        LEFT JOIN attempts a USING(project_id,runner_id,role)
-        GROUP BY i.project_id,i.runner_id,i.role,c.last_seen
-        ORDER BY i.project_id,i.runner_id`,[actor.projectIds])).rows;
+      mission_id:string|null; active_engine:string|null; attempts:number; completed:number; observed:string[];
+    }>(`WITH signals AS (
+        SELECT project_id,runner_id,role,last_seen,last_seen>now()-interval '20 seconds' fresh FROM runner_contacts WHERE project_id=ANY($1)
+        UNION ALL SELECT project_id,runner_id,role,last_seen,last_seen>now()-interval '30 seconds' FROM control_contacts WHERE project_id=ANY($1)
+      ), contacts AS (
+        SELECT project_id,runner_id,role,max(last_seen) last_seen,bool_or(fresh) fresh FROM signals GROUP BY project_id,runner_id,role
+      ), work AS (
+        SELECT project_id,runner_id,role,mission_id,started_at,'a1' engine,role task,status='completed' done,status='active' AND lease_until>now() live FROM attempts WHERE project_id=ANY($1)
+        UNION ALL SELECT a.project_id,a.runner_id,t.role,a.mission_id,a.started_at,'control',a.task_key,a.state='completed',a.state='running' AND a.lease_until>now()
+          FROM control_attempts a JOIN control_tasks t USING(project_id,mission_id,task_key) WHERE a.project_id=ANY($1)
+      ), totals AS (
+        SELECT project_id,runner_id,role,count(*)::int attempts,count(*) FILTER(WHERE done)::int completed,
+          (array_agg(mission_id ORDER BY started_at DESC) FILTER(WHERE live))[1] mission_id,
+          (array_agg(engine ORDER BY started_at DESC) FILTER(WHERE live))[1] active_engine,
+          array_agg(DISTINCT task ORDER BY task) FILTER(WHERE done) observed FROM work GROUP BY project_id,runner_id,role
+      ) SELECT project_id,runner_id,role,last_seen,coalesce(fresh,false) OR mission_id IS NOT NULL fresh,mission_id,active_engine,
+        coalesce(attempts,0) attempts,coalesce(completed,0) completed,coalesce(observed,'{}') observed
+        FROM contacts FULL JOIN totals USING(project_id,runner_id,role) ORDER BY project_id,runner_id`,[actor.projectIds])).rows;
   }
 
   async overview(actor: Operator) {

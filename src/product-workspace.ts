@@ -3,8 +3,9 @@ import type { Operator, ProjectId, Role } from './contracts.ts';
 import { assertProject, transaction } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
 import { cursorPulls } from './cursor-sessions.ts';
+import { latestProjectActivity,readActivity } from './activity.ts';
 
-export type DeskIdentity = {id: string; projectId: ProjectId; role: Role};
+export type DeskIdentity = {id: string; projectId: ProjectId; role: Role;engine?:'control'};
 export type MissionDigest = {id: string; project_id: ProjectId; objective: string; status: string; at: Date; engine: 'control' | 'a1'};
 type Contact = {project_id: ProjectId; runner_id: string; role: Role; at: Date; fresh: boolean};
 export type AssignmentRecord = {
@@ -12,12 +13,19 @@ export type AssignmentRecord = {
   began: Date; finished: Date | null; state: string; live: boolean; engine: 'control' | 'a1'; objective: string;
 };
 type Progress = {project_id: ProjectId; state: string; total: number};
-type Activity = {project_id: ProjectId; at: Date; subject: string; kind: string; href: string; actor: string | null};
 type Lab = {project_id: ProjectId; id: string; profile: string; state: string; verdict: string | null; created_at: Date};
 export type Desk = DeskIdentity & {
   lastSeen: Date | null; state: 'unseen' | 'offline' | 'available' | 'working' | 'verifying';
   records: AssignmentRecord[]; running: number; configured: boolean;
 };
+
+export function agentPresence(agents:readonly Desk[]) {
+  const available=agents.filter(a=>a.state==='available').length;
+  const busy=agents.filter(a=>a.state==='working'||a.state==='verifying').length;
+  return {registered:agents.length,available,busy,connected:available+busy,
+    offline:agents.filter(a=>a.state==='offline').length,unseen:agents.filter(a=>a.state==='unseen').length,
+    latestFailed:agents.filter(a=>!a.running&&a.records[0]?.state==='failed').length};
+}
 
 const missionSet = `
   SELECT id,project_id,objective,status,updated_at AS at,'control'::text AS engine FROM control_missions
@@ -58,7 +66,7 @@ async function desks(client: PoolClient, ids: readonly ProjectId[], configured: 
   function ensure(identity: DeskIdentity, configured = false) {
     const key = JSON.stringify([identity.projectId,identity.id,identity.role]);
     if (!registry.has(key)) registry.set(key, {
-      projectId: identity.projectId, id: identity.id, role: identity.role, configured,
+      projectId: identity.projectId, id: identity.id, role: identity.role, engine:identity.engine,configured,
       lastSeen: null, records: [], state: 'unseen', running: 0,
     });
     return registry.get(key)!;
@@ -100,23 +108,7 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
       SELECT project_id,state FROM control_tasks WHERE project_id=ANY($1::text[])
       UNION ALL SELECT project_id,status FROM steps WHERE project_id=ANY($1::text[])
     ) all_tasks GROUP BY project_id,state`,args)).rows;
-    const events = (await client.query<Activity>(`SELECT * FROM (
-       SELECT e.project_id,e.at,m.objective AS subject,e.event_type AS kind,e.actor,
-         '/projects/'||e.project_id||'/control/'||e.mission_id AS href
-       FROM control_events e JOIN control_missions m ON (m.project_id,m.id)=(e.project_id,e.mission_id)
-       WHERE e.project_id=ANY($1::text[])
-       UNION ALL SELECT project_id,at,'Mission A1',type,coalesce(details->>'operatorId',details->>'runnerId'),
-         '/projects/'||project_id||'/missions/'||mission_id FROM mission_events WHERE project_id=ANY($1::text[])
-       UNION ALL SELECT project_id,at,profile->>'name','project_edited',actor,'/projects/'||project_id||'/settings'
-         FROM project_profile_history WHERE project_id=ANY($1::text[])
-       UNION ALL SELECT project_id,at,title,'knowledge_'||status,actor,'/projects/'||project_id||'/knowledge/'||id
-         FROM knowledge_current WHERE project_id=ANY($1::text[])
-       UNION ALL SELECT project_id,coalesce(finished_at,created_at),profile,coalesce(verdict,'lab_'||state),NULL,
-         '/projects/'||project_id||'/quality/'||id FROM product_lab_runs WHERE project_id=ANY($1::text[])
-       UNION ALL SELECT o.project_id,o.observed_at,p.name,'git_observed',o.observed_by,
-         '/projects/'||o.project_id||'/repository' FROM repository_observations o JOIN projects p ON p.id=o.project_id
-         WHERE o.project_id=ANY($1::text[])
-    ) timeline ORDER BY at DESC,href,kind LIMIT 16`,args)).rows;
+    const {events}=await readActivity(client,actor,filter,undefined,16);
     const labs = (await client.query<Lab>(`SELECT DISTINCT ON (project_id) project_id,id,profile,state,verdict,created_at
       FROM product_lab_runs WHERE project_id=ANY($1::text[]) ORDER BY project_id,created_at DESC,id DESC`,args)).rows;
     const proposals = (await client.query<{project_id: ProjectId; total: number}>(`SELECT project_id,count(*)::int AS total
@@ -134,7 +126,8 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
         ORDER BY observed_at DESC,recorded_at DESC,id DESC LIMIT 1
       ) o ON true WHERE r.project_id=ANY($1::text[]) ORDER BY r.project_id`,args)).rows;
     const cursorSessions=await cursorPulls(client,actor,filter);
-    return { capturedAt, projects, counts, missions, alerts, tasks, events, labs, proposals, agents, backup, repositories, cursorSessions };
+    const lastActivity=await latestProjectActivity(client,ids);
+    return { capturedAt, projects, counts, missions, alerts, tasks, events, lastActivity, labs, proposals, agents, backup, repositories, cursorSessions };
   }, true);
 }
 

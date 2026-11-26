@@ -1,4 +1,5 @@
 import { DomainError, type Credential, type Operator, type Role } from './contracts.ts';
+import {controlVersion} from './control-room-adapters.ts';
 
 export const profileVersion = 'studio-trusted-v1';
 export const capabilityLabels = {
@@ -6,6 +7,9 @@ export const capabilityLabels = {
   'context.readAssigned': 'Lire le contexte de la tentative',
   'artifact.prepare': 'Préparer le livrable synthétique',
   'artifact.verify': 'Évaluer le livrable avec le référentiel',
+  'document.structure':'Indexer les titres du document',
+  'document.coverage':'Localiser les critères dans le document',
+  'evidence.verify':'Recalculer et comparer les preuves',
   'checkpoint.submit': 'Remettre sa preuve au Core',
   'documentation.read': 'Consulter librement les documents du projet',
   'knowledge.search': 'Rechercher dans la mémoire projet',
@@ -57,10 +61,13 @@ export function visibleAgents(credentials: readonly Credential[], actor: Operato
   return credentials.flatMap(identity=>{
     if (identity.kind!=='runner' || !actor.projectIds.includes(identity.projectId)) return [];
     const profile=profiles[identity.role];
+    const control=identity.engine==='control';
+    const reading:Capability[]=identity.role==='preparer'?['document.structure']:['document.coverage','evidence.verify'];
     return [{
-      id:identity.id, project:identity.projectId, role:identity.role, name:profile.name,
-      description:profile.description, capabilities:[...profile.capabilities],
-      runtime:'deterministic-a1', version:profileVersion, costCeilingCents:0,
+      id:identity.id, project:identity.projectId, role:identity.role, name:control&&identity.role==='preparer'?'Documentaliste':profile.name,
+      description:control?'Relecture locale du contrat documentaire du projet.':profile.description,
+      capabilities:control?reading:[...profile.capabilities],engine:control?'control':'a1',
+      runtime:control?'deterministic-control':'deterministic-a1', version:control?controlVersion:profileVersion, costCeilingCents:0,
     }];
   });
 }
