@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CursorPull } from './cursor-sessions.ts';
+import { academyGuide } from './academy-catalog.ts';
 import type { Core } from './core.ts';
 import { origins } from './knowledge.ts';
 import { missionQuality, checkLabels } from './quality.ts';
@@ -99,6 +100,8 @@ export function layout(
       ['lab','App Lab',prefix + '/lab','▣'],
     );
   }
+  navigation.push(['database','Database Explorer',selected?'/projects/'+encodeURIComponent(selected)+'/database':'/database','▤'],
+    ['academy','Studio Academy','/academy','◇']);
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -106,6 +109,7 @@ export function layout(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${e(title)} · Folk &amp; Joy Studio</title>
   <link rel="stylesheet" href="/style.css">
+  ${activeModule==='academy'?'<link rel="stylesheet" href="/academy.css">':''}
 </head>
 <body>
 <a href="#contenu" class="skip">Aller au contenu</a>
@@ -113,6 +117,7 @@ export function layout(
   <a class="brand" href="${authenticated ? '/workspace' : '/'}"><span class="mark" aria-hidden="true">FJ</span><span>Folk &amp; Joy <b>Studio</b></span></a>
   <div class="header-actions">
     <span class="local"><span aria-hidden="true"></span> Espace local</span>
+    ${authenticated && activeModule!=='academy'?`<a class="context-guide" href="${e(academyGuide(activeModule,title))}${selected?'?project='+encodeURIComponent(selected):''}">Guide de cet espace</a>`:''}
     ${authenticated ? '<form action="/logout" method="post"><button class="quiet">Déconnexion</button></form>' : ''}
   </div>
 </header>
@@ -175,7 +180,11 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
     ${project.id === 'a' ? '<a class="button" href="/projects/a/review">Revue des changements Git</a>' : ''}
     <a class="button" href="/projects/${e(project.id)}/control">Missions et agents</a>
     <a class="button" href="/projects/${e(project.id)}/quality">Quality Lab</a>
-    <a class="button" href="/projects/${e(project.id)}/lab">App Lab</a></nav>
+    <a class="button" href="/projects/${e(project.id)}/lab">App Lab</a>
+    <a class="button" href="/projects/${e(project.id)}/database">Schémas de données</a>
+    <a class="button" href="/projects/${e(project.id)}/architecture">Architecture du projet</a>
+    <a class="button" href="/projects/${e(project.id)}/automations">Automatisations</a>
+    <a class="button" href="/activity?project=${e(project.id)}">Chronologie du projet</a></nav>
   ${cursor.length?`<section class="panel cursor-project"><h2>Sessions Cursor du projet</h2>
     <p>${new Set(cursor.map(r=>r.agent_id)).size} sessions reliées par les pull requests GitHub.</p>
     <a class="button" href="/office?project=${e(project.id)}#cursor">Retrouver les sessions et les PR →</a></section>`:''}

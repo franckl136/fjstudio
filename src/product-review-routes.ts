@@ -4,7 +4,7 @@ import { DomainError, type JsonObject, type Operator } from './contracts.ts';
 import { assertProject, notFound } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
 import { captureReview, decideReview, listReviews, reviewDetail, reviewProject } from './product-review.ts';
-import { reviewBranch } from './product-review-source.ts';
+import { currentReviewHead,reviewBranch } from './product-review-source.ts';
 import { date, e, layout } from './views.ts';
 
 interface IO {
@@ -44,11 +44,12 @@ export async function productReviewRoute(pool:Pool,req:IncomingMessage,res:Serve
         <button>Enregistrer la décision</button></form>`:''}</section>`;
     } else {
       const rows=await listReviews(pool,actor,project);
-      if(api) {io.json(res,200,{reviews:rows});return true;}
+      const captureAvailable=canWrite && await currentReviewHead().then(()=>true,()=>false);
+      if(api) {io.json(res,200,{reviews:rows,captureAvailable});return true;}
       const history=rows.map(r=>`<li><a href="${path}/${e(r.id)}"><strong>${e(r.head_sha.slice(0,12))}</strong><span>${date(r.created_at)} · ${e(r.created_by)}</span></a></li>`).join('');
       content=`<a class="back" href="/projects/a">← Projet</a><h1>Revue des changements Git</h1>
         <section class="panel"><h2>Dépôt du Studio</h2><p>Examinez le dernier commit de <code>${e(reviewBranch)}</code> par rapport à son premier parent.</p>
-        ${canWrite?`<form action="${path}" method="post"><button>Capturer les changements</button></form>`:''}</section>
+        ${captureAvailable?`<form action="${path}" method="post"><button>Capturer les changements</button></form>`:canWrite?'<p>La capture requiert un checkout local valide sur cette branche. Les reçus existants restent consultables ci-dessous.</p>':''}</section>
         <section class="panel"><h2>Revues enregistrées</h2>${history?'<ul class="mission-list">'+history+'</ul>':'<p>Aucune revue enregistrée.</p>'}</section>`;
     }
     io.html(res,200,layout('Revue des changements Git',content,await listWorkspaceProjects(pool,actor),project,true));

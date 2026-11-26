@@ -309,4 +309,12 @@ body:has(.office-plan[data-follow=off]) .coffee-steam::after,.loft[data-stale] .
 .cursor-list code { font-size:.74rem; color:#586960; } .cursor-list strong { margin:.23rem 0; font-size:.95rem; }
 .cursor-links { display:flex; flex-wrap:wrap; gap:.35rem .8rem; flex:none; } .cursor-links a { font-size:.86rem; }
 .cursor-source { margin:.7rem 0 0; font-size:.78rem; }
+.execution-graph {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(13rem,100%),1fr));gap:.8rem;list-style:none;padding:0;}
+.execution-graph li {display:grid;align-content:start;gap:.4rem;border:1px solid #b5c1ab;border-top:3px solid #628571;border-radius:.45rem;padding:.8rem;background:#f2f3e8;}
+.execution-graph li:target {outline:2px solid var(--clay);}
+.context-guide {color:#fff1ca;font-size:.84rem;}
+.context-guide:hover,.context-guide:focus-visible {color:white;}
+.execution-graph small {line-height:1.45;}
 @media (max-width:740px) { .cursor-list li {align-items:start; flex-direction:column; gap:.5rem;} .office-controls .jump-cursor {margin:0;} }
+
+#portefeuille td small,#portefeuille th small{display:block;margin-top:.3rem;font-weight:400;color:var(--muted);overflow-wrap:anywhere}

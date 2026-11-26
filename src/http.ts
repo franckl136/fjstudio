@@ -1,5 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { productReviewRoute } from './product-review-routes.ts';
+import { academyRoute } from './academy-routes.ts';
+import { databaseRoute } from './explorer-routes.ts';
+import { attachEvidence } from './knowledge-evidence.ts';
 import { cursorPulls } from './cursor-sessions.ts';
 import { productCampaignRoute } from './product-campaign-routes.ts';
 import { productHandoffRoute } from './product-handoff-routes.ts';
@@ -19,6 +22,8 @@ import { projectTeamBrief } from './project-team-brief.ts';
 import { controlRoomRoute,controlRunnerRoute } from './control-room-routes.ts';
 import { productLabRoute } from './product-lab-routes.ts';
 import { visibleAgents } from './agents.ts';
+import { qualityProfilesRoute } from './quality-profiles-routes.ts';
+import { projectOperationsRoute } from './project-operations-routes.ts';
 import { repositoryRoute } from './repository-routes.ts';
 import { handleAppLabRoute } from './app-lab-routes.ts';
 import { agentPage, commandPage, knowledgePage, knowledgeDetail } from './studio-views.ts';
@@ -29,6 +34,14 @@ const officeAssets = new Map(['work-room.png','review-room.png','maker.png','rev
   ['/office-assets/'+name, { type:name.endsWith('.webp')?'image/webp':name.endsWith('.png')?'image/png':'text/javascript; charset=utf-8',
     bytes:readFileSync(new URL('./office/'+name,import.meta.url)) }]));
 const cookieName = 'a1_operator';
+const moduleFiles:Record<string,[string,string]>={
+  '/database-assets/erd.js':['explorer/erd.js','text/javascript; charset=utf-8'],
+  '/database-assets/explorer.css':['explorer/explorer.css','text/css; charset=utf-8'],
+  '/office-assets/pixel-office.js':['office/pixel-office.js','text/javascript; charset=utf-8'],
+  '/office-assets/pixel-office.css':['office/pixel-office.css','text/css; charset=utf-8'],
+  '/office-assets/pixel-atlas.webp':['office/pixel-atlas.webp','image/webp'],
+  '/academy.css':['academy.css','text/css; charset=utf-8'],
+};
 const sessionTtlMs = 8 * 60 * 60 * 1000;
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -137,7 +150,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
 
   async function studioRoute(req: IncomingMessage, res: ServerResponse, url: URL, actor: Operator, api: boolean,hasArchives:boolean) {
     if (actor.accountRole === 'viewer' && req.method !== 'GET') fail(403,'read_only','Ce compte dispose d’un accès en lecture.');
-    const io = {body,json,html,redirect,hasArchives,repositories:core.repositories,runners:credentials.flatMap(c=>c.kind==='runner'?[{id:c.id,projectId:c.projectId,role:c.role}]:[])};
+    const io = {body,json,html,redirect,hasArchives,repositories:core.repositories,runners:credentials.flatMap(c=>c.kind==='runner'?[{id:c.id,projectId:c.projectId,role:c.role,engine:c.engine}]:[])};
     if(url.pathname.replace(/^\/api/,'')==='/workspace/archives' && req.method==='GET') {
       const allowed=await core.listProjects(actor), archived=allowed.filter(p=>archives.includes(p.id));
       if(api) json(res,200,{projects:archived});
@@ -157,14 +170,26 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       redirect(res,'/projects/'+project+'/control/'+result.id);return true;
     }
     if (await workspaceRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await academyRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await databaseRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await projectOperationsRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productReviewRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productHandoffRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await controlRoomRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productCampaignRoute(core.pool,req,res,url,actor,api,io)) return true;
+    if (await qualityProfilesRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productLabRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await repositoryRoute(core,req,res,url,actor,api,body)) return true;
     if (await handleAppLabRoute(core,req,res,url,actor,api,{body,json,html,redirect})) return true;
     const path = api ? url.pathname.slice(4) : url.pathname;
+    const evidence=/^\/projects\/([a-z][a-z0-9-]*)\/knowledge\/([a-f0-9-]{36})\/evidence$/.exec(path);
+    if(evidence && req.method==='POST') {
+      const input=await body(req,api?'json':'form');
+      exactKeys(input,'version','selection');
+      await attachEvidence(core.pool,actor,evidence[1],evidence[2],Number(input.version),String(input.selection));
+      if(api)json(res,200,{linked:true});else redirect(res,path.slice(0,-9));
+      return true;
+    }
     if (path === '/agents' && req.method === 'GET') {
       const activity = await core.agentActivity(actor);
       const agents = visibleAgents(credentials,actor).map(agent => ({
@@ -266,6 +291,13 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       const method = req.method;
       const officeAsset=officeAssets.get(path);
       if (officeAsset && method==='GET') { send(res,200,officeAsset.type,officeAsset.bytes);return; }
+      if(method==='GET' && Object.hasOwn(moduleFiles,path)) {
+        const [file,mime]=moduleFiles[path];
+        send(res,200,mime,readFileSync(new URL('./'+file,import.meta.url)));return;
+      }
+      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/database)$/.test(path)) {
+        res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'");
+      }
       if (path==='/office' && method==='GET') {
         res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'; connect-src 'self'");
       }
