@@ -395,8 +395,8 @@ function seatPoint(area,seat) {
   if(front[area]?.[seat])return world(area,...front[area][seat]);
   let index=seat-(front[area]?.length??0);
   const count=capacity.get(area)??0;
-  if(area==='coffee' && count<=8){
-    const cafeSeats=[[2.22,2.86],[3.36,3.08],[5.61,3.62],[6.95,3.7],[3.14,5.14],[4.45,5.27],[6.47,5.72],[7.74,5.68]];
+  if(area==='coffee' && count<=4){
+    const cafeSeats=[[1.92,4.1],[3.94,3.46],[6.1,2.98],[6.95,5.84]];
     if(cafeSeats[index])return world(area,...cafeSeats[index]);
   }
   if(area==='coffee' && index<18){

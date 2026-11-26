@@ -22,7 +22,7 @@
 .pixel-ready .pixel-figure {display:block;position:relative;width:100%;height:auto;}
 .pixel-figure.facing-left {transform:scaleX(-1);}
 .pixel-ready .pixel-person:is(:hover,:focus-visible) {z-index:1000!important;}
-.pixel-ready .pixel-label {display:none;position:absolute;left:50%;bottom:103%;transform:translateX(-50%);color:#fff9de;background:#24483f;padding:.25rem .45rem;width:max-content;max-width:10rem;border:1px solid #cab77d;border-radius:.25rem;font:600 .72rem/1.2 system-ui;text-align:center;}
+.pixel-ready .pixel-label {pointer-events:none;display:none;position:absolute;left:50%;bottom:103%;transform:translateX(-50%);color:#fff9de;background:#24483f;padding:.25rem .45rem;width:max-content;max-width:10rem;border:1px solid #cab77d;border-radius:.25rem;font:600 .72rem/1.2 system-ui;text-align:center;}
 .pixel-ready .pixel-person:is(:hover,:focus-visible) .pixel-label {display:block;}
 .pixel-ready .pixel-person[data-trace]::after {content:'Passage récent';position:absolute;white-space:nowrap;bottom:98%;left:50%;transform:translateX(-50%);background:#66533b;color:#fff5d9;padding:.1em .3em;font:600 .6rem system-ui;}
 .pixel-loft:not([data-focus=plan]):not([data-replay]) .pixel-ready {transform:scale(1.83);transform-origin:var(--camera-x) var(--camera-y);}
