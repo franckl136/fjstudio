@@ -41,6 +41,7 @@ test('Comptes humains · activation, trois rôles, projet, rejeu, verrouillage e
   const password=randomBytes(21).toString('base64url');
   async function enroll(invitation:string,first=false) {
     const activation=await store.begin(invitation,first?primary:undefined);
+    assert.ok(activation.secret);
     const secret=seed(activation.secret);
     const old=totp(secret,Math.floor(Date.now()/30000)-1);
     const session=await store.finish(activation.ticket,password,old);
@@ -54,8 +55,10 @@ test('Comptes humains · activation, trois rôles, projet, rejeu, verrouillage e
   await assert.rejects(store.begin(bootstrap,primary));
   const invited=await store.invite(root.actor,'reader','viewer',['a']);
   const abandoned=await store.begin(invited,undefined);
+  assert.ok(abandoned.secret);
+  const abandonedSeed=seed(abandoned.secret);
   const replacement=await store.renew(root.actor,'reader');
-  await assert.rejects(store.finish(abandoned.ticket,password,totp(seed(abandoned.secret),Math.floor(Date.now()/30000))));
+  await assert.rejects(store.finish(abandoned.ticket,password,totp(abandonedSeed,Math.floor(Date.now()/30000))));
   const reader=await enroll(replacement);
   const operator=await enroll(await store.invite(root.actor,'writer','operator',['a']));
   assert.equal(operator.actor.accountRole,'operator');
@@ -92,6 +95,57 @@ test('Comptes humains · activation, trois rôles, projet, rejeu, verrouillage e
   assert.equal(stored.password_hash.equals(Buffer.from(password)),false);
   await store.logout(root.session);
   assert.equal(await store.actor(root.session),null);
+});
+
+test('Administrateur local · reprise de l’activation et connexion par mot de passe sur autorisation explicite',async t=>{
+  const url=new URL(process.env.DATABASE_URL!), admin=createPool(url.href);
+  const name='fjstudio_a1_test_'+randomUUID().replaceAll('-','');
+  await admin.query('CREATE DATABASE '+name+' TEMPLATE template0');
+  url.pathname='/'+name;
+  const db=createPool(url.href);
+  t.after(async()=>{await db.end();try{await admin.query('DROP DATABASE '+name);}finally{await admin.end();}});
+  await migrate(db);
+  const key=randomBytes(32);
+  const principal={id:'operator-local',kind:'operator' as const,token:randomBytes(24).toString('base64url'),projectIds:['a']};
+  const strict=new HumanAccess(db,key);
+  const local=new HumanAccess(db,key,true);
+  const server=createServer(new Core(db),[principal],key,true);
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(()=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();}));
+  const base='http://127.0.0.1:'+(server.address() as AddressInfo).port;
+  const post=(path:string,fields:Record<string,string>,cookie='')=>fetch(base+path,{method:'POST',redirect:'manual',
+    headers:{Origin:base,Cookie:cookie},body:new URLSearchParams(fields)});
+  assert.match(await (await fetch(base)).text(),/Code d’activation/);
+  const denied=await post('/enroll',{invitation:'incorrect'});
+  assert.equal(denied.status,401);
+  const first=await post('/enroll',{invitation:principal.token});
+  assert.equal(first.headers.get('location'),'/enroll/confirm');
+  const setupCookie=first.headers.getSetCookie()[0].split(';')[0];
+  const form=await (await fetch(base+'/enroll/confirm',{headers:{Cookie:setupCookie}})).text();
+  assert.match(form,/Choisir le mot de passe/);assert.doesNotMatch(form,/name="otp"/);
+  const pending=await strict.begin(principal.token,principal);
+  assert.ok(pending.secret);
+  const password=randomBytes(18).toString('base64url');
+  assert.equal((await post('/enroll/confirm',{password},setupCookie)).status,410);
+  const resumedCookie='studio_enrollment='+pending.ticket;
+  assert.match(await (await fetch(base,{headers:{Cookie:resumedCookie}})).text(),/Choisir le mot de passe/);
+  assert.equal((await post('/enroll/confirm',{password:'court'},resumedCookie)).status,400);
+  assert.equal((await post('/enroll/confirm',{password},resumedCookie)).status,303);
+  assert.equal((await post('/enroll',{invitation:principal.token})).status,401);
+  assert.doesNotMatch(await (await fetch(base)).text(),/name="otp"/);
+  assert.equal((await post('/login',{id:'admin-local',password:'incorrect'})).status,401);
+  const login=await post('/login',{id:'admin-local',password});
+  assert.equal(login.status,303);
+  const session=login.headers.getSetCookie()[0].split(';')[0].split('=')[1];
+  const actor=await local.actor(session);assert.ok(actor);assert.equal(actor.accountRole,'admin');
+  assert.equal(await strict.actor(session),null);
+  await assert.rejects(strict.login('admin-local',password,'000000'));
+  const stored=(await db.query("SELECT totp_secret,local_password_only FROM studio_accounts WHERE id='admin-local'")).rows[0];
+  assert.deepEqual(stored,{totp_secret:null,local_password_only:true});
+  const viewer=await local.begin(await local.invite(actor,'visitor','viewer',['a']),undefined);
+  assert.ok(viewer.secret);
+  await assert.rejects(local.finish(viewer.ticket,password,''));
+  assert.match(await (await fetch(base+'/login?totp=1')).text(),/name="otp"/);
 });
 
 test('Intelligence · import Git borné, révisions, sélection par projet et révocation',async t=>{

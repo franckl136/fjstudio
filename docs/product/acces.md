@@ -4,6 +4,12 @@ Le port 3040 utilise des comptes nominatifs. Les deux configurations privées so
 
 ## Première ouverture
 
+Sur une instance locale configurée avec `STUDIO_LOCAL_ADMIN_PASSWORD_ONLY=1` dans le fichier privé `.env.human.local`, le premier compte `admin-local` utilise un mot de passe seul. Ouvrir l’accueil dans le navigateur utilisé pour commencer l’activation et choisir un mot de passe d’au moins 14 caractères. Si la tentative a expiré, saisir la clé obtenue avec `npm.cmd run --silent access:local` dans le dossier du Studio, puis choisir le mot de passe. Aux connexions suivantes, utiliser `admin-local` et ce mot de passe.
+
+Cette option s’applique à l’activation du premier administrateur. Les comptes invités et les administrateurs déjà activés avec TOTP gardent leur second facteur. Le lien **Connexion pour les comptes avec authentificateur** leur ouvre le formulaire approprié. Retirer l’option bloque l’accès du compte créé par mot de passe seul, y compris ses sessions existantes. Prévoir un administrateur actif avec TOTP avant de revenir à la configuration standard.
+
+### Configuration standard avec TOTP
+
 Depuis le checkout du produit, exécuter `npm run access:local` dans un terminal personnel. Ouvrir la page d’accueil et choisir **Activer un compte local**. Saisir cette clé d’amorçage. Dans une application d’authentification configurée localement, ajouter la clé TOTP affichée à l’écran. Choisir un mot de passe d’au moins 14 caractères et confirmer le code temporel. Le compte créé s’appelle `admin-local`. La clé d’amorçage cesse de permettre cette opération dès la première activation. Les essais automatiques utilisent leurs propres bases et comptes temporaires.
 
 Dans **Comptes locaux**, l’administrateur peut inviter un lecteur, un opérateur ou un autre administrateur dans ses projets, renouveler une invitation en attente, ajuster les projets autorisés et désactiver un compte. Les invitations expirent après 30 minutes, l’enrôlement après 10 minutes. Chaque session expire après huit heures et se ferme immédiatement à la désactivation du compte. Une modification de périmètre prend effet à la prochaine requête. Un administrateur ne peut pas s’attribuer un projet tiers en modifiant son compte.

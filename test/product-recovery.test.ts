@@ -63,6 +63,7 @@ test('Résilience produit · dump restauré, preuves préservées, sessions et t
     password = randomBytes(30).toString('base64url');
   const auth = new HumanAccess(db, key);
   const enrolled = await auth.begin(bootstrap, { token: bootstrap, projectIds: ['a'] });
+  assert.ok(enrolled.secret);
   const seed = decode32(enrolled.secret);
   const oldSession = await auth.finish(
     enrolled.ticket,

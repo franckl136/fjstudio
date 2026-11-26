@@ -15,7 +15,7 @@ export async function quarantineRestoredProduct(client: PoolClient) {
   await client.query('DELETE FROM studio_sessions');
   await client.query(`UPDATE studio_accounts SET invite_digest=NULL,invite_until=NULL,setup_digest=NULL,setup_until=NULL,
     totp_secret=CASE WHEN enrolled_at IS NULL THEN NULL ELSE totp_secret END,
-    last_counter=CASE WHEN enrolled_at IS NULL THEN NULL ELSE
+    last_counter=CASE WHEN enrolled_at IS NULL OR local_password_only THEN NULL ELSE
       GREATEST(last_counter, floor(extract(epoch FROM clock_timestamp())/30)::bigint) END`);
   await client.query(`INSERT INTO studio_access_events(actor,action,subject)
     VALUES('restore','sessions_and_invitations_revoked','studio')`);

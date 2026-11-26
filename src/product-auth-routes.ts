@@ -12,16 +12,43 @@ const setupCookie='studio_enrollment';
 const set=(name:string,value:string,age:number)=>name+'='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age='+age;
 const field=(id:string,label:string,type:string,auto:string,attrs='') =>
   '<label>'+label+'<input required name="'+id+'" type="'+type+'" autocomplete="'+auto+'" '+attrs+'></label>';
-export function humanLogin() {
+function activationForm() {
+  return `<form method="post" action="/enroll">${field('invitation','Code d’activation','password','off')}<button>Commencer l’activation</button></form>`;
+}
+function localActivation(expired=false) {
+  return layout('Activer le Studio',`<section class="panel login"><h1>Activer admin-local</h1>
+    ${expired?'<p role="alert">Cette tentative a expiré. Recommencez avec votre clé locale.</p>':''}
+    <p>Dans PowerShell, depuis le dossier du Studio, lancez <code>npm.cmd run --silent access:local</code>.
+    Collez la clé affichée ci-dessous. Vous choisirez ensuite votre mot de passe.</p>${activationForm()}</section>`);
+}
+function chooseLocalPassword() {
+  return layout('Choisir le mot de passe',`<section class="panel login"><h1>Choisir le mot de passe</h1>
+    <p>Votre identifiant de connexion est <strong>admin-local</strong>.</p>
+    <form method="post" action="/enroll/confirm">
+    ${field('password','Nouveau mot de passe (14 caractères minimum)','password','new-password','minlength="14" maxlength="256"')}
+    <button class="primary">Activer et se connecter</button></form></section>`);
+}
+export function humanLogin(passwordOnly=false) {
   return layout('Connexion au Studio',`<section class="panel login"><h1>Ouvrir le Studio</h1>
     <form method="post" action="/login">${field('id','Identifiant','text','username')}${field('password','Mot de passe','password','current-password','maxlength="256"')}
-    ${field('otp','Code de l’authentificateur','text','one-time-code','inputmode="numeric" pattern="[0-9]{6}"')}<button class="primary">Se connecter</button></form>
+    ${passwordOnly?'':field('otp','Code de l’authentificateur','text','one-time-code','inputmode="numeric" pattern="[0-9]{6}"')}<button class="primary">Se connecter</button></form>
+    ${passwordOnly?'<p><a href="/login?totp=1">Connexion pour les comptes avec authentificateur</a></p>':''}
     <details><summary>Activer un compte local</summary><p>Pour activer le premier compte <strong>admin-local</strong>, ouvrez PowerShell dans le dossier du Studio et lancez <code>npm.cmd run --silent access:local</code>. Collez la clé affichée dans le champ ci-dessous.</p>
     <p>Si vous avez reçu une invitation, saisissez le code fourni par votre administrateur.</p>
-    <form method="post" action="/enroll">${field('invitation','Code d’activation','password','off')}<button>Commencer l’activation</button></form></details></section>`);
+    ${activationForm()}</details></section>`);
 }
 export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:ServerResponse,path:string,actor:Operator|null,
   credentials:readonly Credential[],io:UI) {
+  if (store.localAdminPasswordOnly && !actor && req.method==='GET' && ['/','/login','/enroll/confirm'].includes(path)) {
+    const admin=await store.localAdminSetup(cookie(req,setupCookie));
+    if (!admin.enrolled) {
+      io.html(res,200,admin.pending?chooseLocalPassword():localActivation(path==='/enroll/confirm'));
+      return true;
+    }
+    const wantsTotp=new URL(req.url??path,'http://localhost').searchParams.get('totp')==='1';
+    io.html(res,200,humanLogin(admin.passwordOnly && !wantsTotp));
+    return true;
+  }
   if(path==='/login' && req.method==='POST') {
     const input=await io.body(req,'form');
     const session=await store.login(String(input.id??''),String(input.password??''),String(input.otp??''));
@@ -32,6 +59,9 @@ export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:Serve
     const principal=credentials.find(c=>c.id==='operator-local' && c.kind==='operator');
     const result=await store.begin(String(input.invitation??''),principal?.kind==='operator'?principal:undefined);
     res.setHeader('Set-Cookie',set(setupCookie,result.ticket,600));
+    if(result.secret===null) {
+      io.redirect(res,'/enroll/confirm');return true;
+    }
     io.html(res,200,layout('Activer le compte',`<section class="panel login"><h1>Activer ${e(result.id)}</h1>
       <p>Dans votre application d’authentification, ajoutez cette clé manuellement. Choisissez un code temporel de six chiffres.</p>
       <p><code>${e(result.secret)}</code></p><form method="post" action="/enroll/confirm">
@@ -41,7 +71,12 @@ export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:Serve
   }
   if(path==='/enroll/confirm' && req.method==='POST') {
     const input=await io.body(req,'form');
-    const session=await store.finish(cookie(req,setupCookie),String(input.password??''),String(input.otp??''));
+    const ticket=cookie(req,setupCookie);
+    if(store.localAdminPasswordOnly) {
+      const admin=await store.localAdminSetup(ticket);
+      if(!admin.enrolled && !admin.pending) { io.html(res,410,localActivation(true));return true; }
+    }
+    const session=await store.finish(ticket,String(input.password??''),String(input.otp??''));
     res.setHeader('Set-Cookie',[set(setupCookie,'',0),set(humanCookie,session,28800)]);io.redirect(res,'/');return true;
   }
   if(path==='/logout' && req.method==='POST') {

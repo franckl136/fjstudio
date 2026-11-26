@@ -80,7 +80,16 @@ export class HumanAccess {
   private key: Buffer;
   private recent: number[] = [];
   private active = 0;
-  constructor(pool:Pool,key:Buffer) { this.pool=pool; this.key=key; }
+  readonly localAdminPasswordOnly: boolean;
+  constructor(pool:Pool,key:Buffer,localAdminPasswordOnly=false) {
+    this.pool=pool; this.key=key; this.localAdminPasswordOnly=localAdminPasswordOnly;
+  }
+  async localAdminSetup(ticket:string) {
+    const row=(await this.pool.query(`SELECT enrolled_at IS NOT NULL AS enrolled, local_password_only,
+      COALESCE(enabled AND enrolled_at IS NULL AND setup_digest=$1 AND setup_until>now(),false) AS pending
+      FROM studio_accounts WHERE id='admin-local'`,[hash(ticket)])).rows[0];
+    return {enrolled:row?.enrolled===true,pending:row?.pending===true,passwordOnly:row?.local_password_only===true};
+  }
 
   /** Limits local resource consumption even for unknown account names. Account lockouts persist in SQL. */
   private async limited<T>(work:()=>Promise<T>) {
@@ -118,11 +127,12 @@ export class HumanAccess {
         const row=await client.query<{id:string}>('SELECT id FROM studio_accounts WHERE invite_digest=$1 AND invite_until>now() AND enabled AND enrolled_at IS NULL FOR UPDATE',[digest]);
         if(!row.rows[0]) throw invalid(); id=row.rows[0].id;
       }
-      const seed=randomBytes(20), ticket=token();
+      const seed=this.localAdminPasswordOnly && id==='admin-local'?null:randomBytes(20);
+      const ticket=token();
       await client.query("UPDATE studio_accounts SET totp_secret=$2,setup_digest=$3,setup_until=now()+interval '10 minutes',invite_digest=NULL WHERE id=$1",
-        [id,seal(this.key,id,seed),hash(ticket)]);
+        [id,seed ? seal(this.key,id,seed) : null,hash(ticket)]);
       await audit(client,id,'enrollment_started',id);
-      return {id,secret:base32(seed),ticket};
+      return {id,secret:seed ? base32(seed) : null,ticket};
     }));
   }
   async finish(ticket:string,password:string,otp:string) {
@@ -131,10 +141,13 @@ export class HumanAccess {
     return this.limited(async()=>transaction(this.pool,async client=>{
       const r=await client.query('SELECT id,totp_secret FROM studio_accounts WHERE setup_digest=$1 AND setup_until>now() AND enabled AND enrolled_at IS NULL FOR UPDATE',[hash(ticket)]);
       const row=r.rows[0]; if(!row) throw invalid();
-      const counter=validCounter(open(this.key,row.id,row.totp_secret),otp,Date.now(),-1);
-      if(counter===null) throw invalid();
+      const passwordOnly=this.localAdminPasswordOnly && row.id==='admin-local';
+      const counter=!passwordOnly && row.totp_secret ? validCounter(open(this.key,row.id,row.totp_secret),otp,Date.now(),-1) : null;
+      if(!passwordOnly && counter===null) throw invalid();
       const salt=randomBytes(16), pass=await passwordKey(password,salt);
-      await client.query('UPDATE studio_accounts SET password_hash=$2,salt=$3,last_counter=$4,enrolled_at=now(),setup_digest=NULL,setup_until=NULL WHERE id=$1',[row.id,pass,salt,counter]);
+      await client.query(`UPDATE studio_accounts SET password_hash=$2,salt=$3,last_counter=$4,enrolled_at=now(),
+        local_password_only=$5,totp_secret=CASE WHEN $5 THEN NULL ELSE totp_secret END,
+        setup_digest=NULL,setup_until=NULL WHERE id=$1`,[row.id,pass,salt,counter,passwordOnly]);
       await audit(client,row.id,'enrolled',row.id);
       return this.issue(client,row.id);
     }));
@@ -152,8 +165,9 @@ export class HumanAccess {
       if(row?.locked) return null;
       const actual=await passwordKey(password,row?.salt??Buffer.alloc(16));
       const valid=row?.enabled && row.enrolled_at && timingSafeEqual(actual,row.password_hash);
-      const counter=valid?validCounter(open(this.key,id,row.totp_secret),otp,Date.now(),Number(row.last_counter)):null;
-      if(counter===null) {
+      const passwordOnly=this.localAdminPasswordOnly && id==='admin-local' && row?.local_password_only;
+      const counter=valid && row.totp_secret ? validCounter(open(this.key,id,row.totp_secret),otp,Date.now(),Number(row.last_counter)) : null;
+      if(!valid || (!passwordOnly && counter===null)) {
         if(row) {
           await client.query("UPDATE studio_accounts SET failures=CASE WHEN failures>=4 THEN 0 ELSE failures+1 END,locked_until=CASE WHEN failures>=4 THEN now()+interval '5 minutes' ELSE NULL END WHERE id=$1",[id]);
           await audit(client,id,'authentication_failed',id);
@@ -167,7 +181,7 @@ export class HumanAccess {
   }
   async actor(session:string):Promise<Operator|null> {
     if(!/^[\w-]{43}$/.test(session)) return null;
-    const r=await this.pool.query("SELECT a.id,a.role,ARRAY(SELECT project_id FROM studio_account_projects WHERE account_id=a.id ORDER BY project_id) AS projects FROM studio_sessions s JOIN studio_accounts a ON a.id=s.account_id WHERE s.digest=$1 AND s.expires_at>now() AND a.enabled AND a.enrolled_at IS NOT NULL",[hash(session)]);
+    const r=await this.pool.query("SELECT a.id,a.role,ARRAY(SELECT project_id FROM studio_account_projects WHERE account_id=a.id ORDER BY project_id) AS projects FROM studio_sessions s JOIN studio_accounts a ON a.id=s.account_id WHERE s.digest=$1 AND s.expires_at>now() AND a.enabled AND a.enrolled_at IS NOT NULL AND (NOT a.local_password_only OR $2)",[hash(session),this.localAdminPasswordOnly]);
     const row=r.rows[0];return row?{id:row.id,projectIds:row.projects,accountRole:row.role}:null;
   }
   async logout(session:string) { await this.pool.query('DELETE FROM studio_sessions WHERE digest=$1',[hash(session)]); }

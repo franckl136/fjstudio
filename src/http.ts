@@ -104,8 +104,8 @@ function localAuthority(req: IncomingMessage): string {
   return host;
 }
 
-export function createServer(core: Core, credentials: readonly Credential[], humanKey: Buffer | undefined = process.env.STUDIO_HUMAN_AUTH === '1' ? identityKey() : undefined): Server {
-  const human = humanKey ? new HumanAccess(core.pool,humanKey) : null;
+export function createServer(core: Core, credentials: readonly Credential[], humanKey: Buffer | undefined = process.env.STUDIO_HUMAN_AUTH === '1' ? identityKey() : undefined, localAdminPasswordOnly=process.env.STUDIO_LOCAL_ADMIN_PASSWORD_ONLY==='1'): Server {
+  const human = humanKey ? new HumanAccess(core.pool,humanKey,localAdminPasswordOnly) : null;
   const identities = new Map(credentials.map(value => [hash(value.token), value]));
   const sessions = new Map<string, { actor: Operator; expiresAt: number }>();
 
@@ -340,6 +340,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       }
       if (!session) {
         if (method === 'GET') {
+          if (human?.localAdminPasswordOnly) { redirect(res,'/'); return; }
           html(res, 200, human ? humanLogin() : loginPage());
           return;
         }
