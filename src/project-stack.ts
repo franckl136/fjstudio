@@ -19,12 +19,15 @@ export async function projectStack(pool:Pool,actor:Operator,project:string):Prom
   }
 }
 
-export async function inspectStack(root:string|null):Promise<Stack>{
+export async function inspectStack(root:string|null,eligible?:(paths:string[])=>Promise<Set<string>>):Promise<Stack>{
   const result:Stack={tools:[],storage:[],checks:[],files:[],status:'read'};
   try{
     if(!root)return {...result,status:'unlinked'};
-    for(const prefix of await moduleRoots(root)){
-      const file=prefix+'package.json', bytes=await localBytes(root,file,192000);
+    const manifests=(await moduleRoots(root)).map(prefix=>prefix+'package.json');
+    const allowed=eligible?await eligible([...manifests,'requirements.txt','app.py']):undefined;
+    const read=(file:string,limit:number)=>allowed&&!allowed.has(file)?null:localBytes(root,file,limit);
+    for(const file of manifests){
+      const bytes=await read(file,192000);
       if(!bytes)continue;
       let manifest;
       try{manifest=JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,''));}catch{result.status='partial';continue;}
@@ -34,13 +37,13 @@ export async function inspectStack(root:string|null):Promise<Stack>{
       for(const [key,title] of Object.entries(technologies))if(Object.hasOwn(deps,key)&&!result.tools.includes(title))result.tools.push(title);
       for(const name of checks)if(typeof manifest.scripts?.[name]==='string')result.checks.push({name,file});
     }
-    const requirements=await localBytes(root,'requirements.txt',48000);
+    const requirements=await read('requirements.txt',48000);
     if(requirements){
       const modules=requirements.toString('utf8').toLowerCase().split(/\r?\n/).map(line=>line.trim().split(/[\s<>=!~\[#;]/)[0]);
       result.files.push('requirements.txt');
       for(const [key,title] of [['streamlit','Streamlit'],['pandas','pandas'],['plotly','Plotly']])if(modules.includes(key))result.tools.push(title);
       if(modules.includes('pandas')){
-        const app=(await localBytes(root,'app.py',384000))?.toString('utf8');
+        const app=(await read('app.py',384000))?.toString('utf8');
         if(app){
           result.files.push('app.py');
           if(/\b(?:pd|pandas)\.(?:read_excel|ExcelFile)\(/.test(app))result.storage.push('Import de classeurs Excel');

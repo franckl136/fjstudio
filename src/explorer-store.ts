@@ -7,7 +7,7 @@ import { importSql,importPrisma } from './explorer-import.ts';
 import { inspectCatalog } from './explorer-catalog.ts';
 
 type DB=Pool|PoolClient;
-export type Source={id:string;project_id:string|null;environment:string;label:string;origin:string;revoked_at:Date|null};
+export type Source={id:string;project_id:string|null;environment:string;label:string;origin:string;revoked_at:Date|null;from_code:boolean;synthetic_project:boolean;demonstration:boolean};
 export type Snapshot={id:string;source_id:string;captured_at:Date;actor:string;reference:string;digest:string;structure:SchemaModel};
 export type Version=Omit<Snapshot,'structure'>;
 function scope(actor:Operator,project:string|null) {
@@ -18,14 +18,18 @@ function edit(actor:Operator,project:string) {
   scope(actor,project);
   if(actor.accountRole==='viewer')throw new DomainError(403,'schema_readonly','Ce compte dispose d’un accès en lecture.');
 }
+const sourceColumns=`s.id,s.project_id,s.environment,s.label,s.origin,s.revoked_at,
+  (s.created_by='studio-code' AND s.label LIKE 'Code local · %') AS from_code,
+  EXISTS(SELECT 1 FROM projects p WHERE p.id=s.project_id AND p.context->>'classification'='synthetic') AS synthetic_project,
+  coalesce((SELECT h.structure->>'demonstration'='true' FROM explorer_snapshots h WHERE h.source_id=s.id ORDER BY h.captured_at DESC,h.id DESC LIMIT 1),false) AS demonstration`;
 export async function sources(db:DB,actor:Operator,project:string|null) {
   scope(actor,project);
-  return (await db.query<Source>(`SELECT id,project_id,environment,label,origin,revoked_at FROM explorer_sources
+  return (await db.query<Source>(`SELECT ${sourceColumns} FROM explorer_sources s
     WHERE project_id IS NOT DISTINCT FROM $1::text AND revoked_at IS NULL ORDER BY environment,label,id`,[project])).rows;
 }
 export async function readSource(db:DB,actor:Operator,project:string|null,id:string,lock=false) {
   scope(actor,project);assertId(id);
-  const s=(await db.query<Source>('SELECT id,project_id,environment,label,origin,revoked_at FROM explorer_sources WHERE id=$1 AND project_id IS NOT DISTINCT FROM $2::text AND revoked_at IS NULL'+(lock?' FOR UPDATE':''),[id,project])).rows[0];
+  const s=(await db.query<Source>(`SELECT ${sourceColumns} FROM explorer_sources s WHERE s.id=$1 AND s.project_id IS NOT DISTINCT FROM $2::text AND s.revoked_at IS NULL`+(lock?' FOR UPDATE':''),[id,project])).rows[0];
   if(!s)throw notFound();return s;
 }
 export async function versions(db:DB,actor:Operator,project:string|null,id:string) {
@@ -81,9 +85,12 @@ export async function importSource(pool:Pool,actor:Operator,project:string,v:Rec
   const f=sourceFields(v.environment,v.label,v.reference??''),origin=v.origin;
   if(!['sql','prisma','migration'].includes(String(origin))||typeof v.document!=='string')throw invalid('Format d’import invalide.');
   if(f.label.startsWith(codePrefix))throw invalid('Ce nom est réservé aux sources du code local.');
+  if(v.demonstration!==undefined && v.demonstration!=='yes')throw invalid('Usage de démonstration invalide.');
   const text=v.document;
   return transaction(pool,async c=>{
     const s=await referenceSource(c,project,f.environment,f.label,origin as Origin,actor.id);
+    const latest=(await c.query<{structure:SchemaModel}>('SELECT structure FROM explorer_snapshots WHERE source_id=$1 ORDER BY captured_at DESC,id DESC LIMIT 1',[s.id])).rows[0];
+    if(latest && v.demonstration==='yes' && !latest.structure.demonstration)throw invalid('Créez une source distincte pour cette démonstration.');
     let base:SchemaModel|undefined;
     const inputDigest=hash(text.replaceAll('\r\n','\n'));
     if(origin==='migration'){
@@ -91,10 +98,11 @@ export async function importSource(pool:Pool,actor:Operator,project:string,v:Rec
       if(previous.rows.length)return {source:s.id,id:previous.rows[0].snapshot_id};
       if(f.reference && (await c.query('SELECT 1 FROM explorer_migration_inputs WHERE source_id=$1 AND reference=$2',[s.id,f.reference])).rowCount)
         throw invalid('Cette référence de migration existe avec un contenu différent.');
-      base=(await c.query<{structure:SchemaModel}>('SELECT structure FROM explorer_snapshots WHERE source_id=$1 ORDER BY captured_at DESC,id DESC LIMIT 1',[s.id])).rows[0]?.structure;
+      base=latest?.structure;
     }
     const m=origin==='prisma'?importPrisma(text):await importSql(text,base);
     if(origin==='migration'&&f.reference&&!m.migrations.includes(f.reference))m.migrations.push(f.reference);
+    if(latest?.structure.demonstration || v.demonstration==='yes')m.demonstration=true;
     const result=await persist(c,s,actor.id,m,f.reference);
     if(origin==='migration')await c.query('INSERT INTO explorer_migration_inputs(source_id,reference,input_digest,snapshot_id) VALUES ($1,$2,$3,$4)',[s.id,f.reference,inputDigest,result.id]);
     return result;

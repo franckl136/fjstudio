@@ -5,7 +5,8 @@ import type { Pool } from 'pg';
 import { importSql,importPrisma } from '../src/explorer-import.ts';
 import { captureInternal,importSource,readSource,revokeSource,snapshot,sources,versions } from '../src/explorer-store.ts';
 import { differences,schemaSignals } from '../src/explorer-model.ts';
-import { inspectDedicated } from '../src/explorer-connections.ts';
+import { connectionChoices,inspectDedicated,refreshConnection } from '../src/explorer-connections.ts';
+import { overview } from '../src/explorer-views.ts';
 import { createPool } from '../src/config.ts';
 import { migrate } from '../src/core.ts';
 import { createServer } from '../src/http.ts';
@@ -50,6 +51,12 @@ test('Explorer · SQL passif, FK composite exacte, RLS, migration et littéraux 
   assert.equal(t.columns.length,4);
   await assert.rejects(importSql('CREATE TABLE broken (secret-sensitive @@@'),e=>e instanceof Error&&!e.message.includes('secret-sensitive'));
 });
+test('Explorer · intégration sans schéma et absence de dépôt restent distinguées',()=>{
+  const project='a',sources:[]=[];
+  assert.match(overview('/projects/a/database',[],{project,state:'detected',status:'Intégration Notion déclarée',sources}),/Notion.*Aucun schéma SQL/u);
+  assert.match(overview('/projects/a/database',[],{project,state:'unlinked',status:'',sources}),/dossier local relié/);
+  assert.match(overview('/projects/a/database',[],{project,state:'unavailable',status:'',sources}),/Source indisponible/);
+});
 test('Explorer · Prisma utilise les noms physiques et ne suppose aucune FK émulée',()=>{
   const p='datasource db {\n provider="postgresql"\n url=env("DATABASE_URL")\n}\nmodel Atelier {\n id Int @id @map("pk")\n travaux Travail[]\n @@map("ateliers")\n}\nmodel Travail {\n id Int @id\n a Int @map("atelier_id")\n atelier Atelier @relation(fields:[a],references:[id],onDelete:Cascade)\n @@index([a])\n}';
   const m=importPrisma(p);const t=m.tables.find(t=>t.name==='Travail')!,fk=t.constraints.find(c=>c.kind==='foreign')!;
@@ -71,6 +78,13 @@ test('Explorer · captures PostgreSQL réelles, historique, droits, masquage et 
   const a=await importSource(pool,op,'a',fields),b=await importSource(pool,admin,'b',fields);
   const external=await importSource(pool,op,'a',{...fields,environment:'development'});
   assert.notEqual(a.source,external.source);
+  const demo=await importSource(pool,op,'a',{...fields,label:'Atelier de démonstration',demonstration:'yes'});
+  const marked=await readSource(pool,op,'a',demo.source);
+  assert.equal(marked.demonstration,true);assert.equal(marked.from_code,false);assert.equal(marked.synthetic_project,true);
+  await importSource(pool,op,'a',{...fields,label:marked.label});
+  assert.equal((await snapshot(pool,op,'a',demo.source)).structure.demonstration,true);
+  assert.equal((await readSource(pool,op,'a',a.source)).demonstration,false);
+  await assert.rejects(importSource(pool,op,'a',{...fields,demonstration:'yes'}),{status:400});
   await assert.rejects(snapshot(pool,admin,'a',a.source,external.id),{status:404});
   await assert.rejects(snapshot(pool,op,'a',b.source,b.id),{status:404});await assert.rejects(readSource(pool,op,'b',b.source),{status:404});
   const inc={...fields,origin:'migration',reference:'002.sql',document:'ALTER TABLE public.travaux ADD COLUMN titre text'};
@@ -101,9 +115,25 @@ test('Explorer · connexion avec rôle catalogue seul sur grappe de recette isol
   await pool.query("CREATE ROLE "+role+" LOGIN PASSWORD '"+password+"'");
   try{
     const dsn=new URL(testUrl);dsn.username=role;dsn.password=password;
-    const m=await inspectDedicated(dsn.href,['public']);assert(m.tables.some(t=>t.name==='projects'));
-    await pool.query('GRANT SELECT ON projects TO '+role);
-    await assert.rejects(inspectDedicated(dsn.href,['public']),/dédié aux métadonnées/);
+    const secret='STUDIO_EXPLORER_DSN_RECETTE_'+randomBytes(5).toString('hex').toUpperCase(),label='Catalogue de recette';
+    const previous=process.env.STUDIO_EXPLORER_CONNECTIONS;
+    try{
+      process.env.STUDIO_EXPLORER_CONNECTIONS=JSON.stringify([{project:'a',environment:'test',label,schemas:['public'],secret}]);
+      process.env[secret]=dsn.href;
+      assert.deepEqual(connectionChoices(pool,viewer,'a'),[]);
+      assert.equal(connectionChoices(pool,admin,'a')[0].attempt,undefined);
+      const seen=await refreshConnection(pool,admin,'a','test',label);
+      assert.equal(connectionChoices(pool,admin,'a')[0].attempt?.ok,true);
+      await pool.query('GRANT SELECT ON projects TO '+role);
+      await assert.rejects(refreshConnection(pool,admin,'a','test',label),/dédié aux métadonnées/);
+      assert.equal(connectionChoices(pool,admin,'a')[0].attempt?.ok,false);
+      assert.equal((await versions(pool,admin,'a',seen.source)).length,1);
+      assert(!JSON.stringify(connectionChoices(pool,admin,'a')).includes(password));
+    }finally{
+      delete process.env[secret];
+      if(previous===undefined)delete process.env.STUDIO_EXPLORER_CONNECTIONS;else process.env.STUDIO_EXPLORER_CONNECTIONS=previous;
+    }
+
   }finally{await pool.query('DROP OWNED BY '+role);await pool.query('DROP ROLE '+role);}
 });
 
@@ -114,6 +144,9 @@ test('Explorer · code local non commité, empreinte rejouable, lecture bornée 
   try{
     process.env.STUDIO_GIT_REPOSITORIES=JSON.stringify([{key,project,directory:root,remote:''}]);
     await pool.query("INSERT INTO project_repositories(project_id,repository_key,remote_url,registered_by) VALUES($1,$2,'','fixture')",[project,key]);
+    await writeFile(join(root,'package.json'),JSON.stringify({dependencies:{'@notionhq/client':'0.0.0','@supabase/supabase-js':'0.0.0'}}));
+    const notion=await syncProjectCode(pool,admin,project);
+    assert.equal(notion.state,'detected');assert.match(notion.status,/Notion/);assert.match(notion.status,/Supabase/);assert.equal(notion.sources.length,0);
     await mkdir(dir,{recursive:true});
     await writeFile(join(dir,'001_initial.sql'),"CREATE EXTENSION IF NOT EXISTS pgcrypto;");
     await writeFile(join(dir,'002_rooms.sql'),"CREATE TABLE public.loft(id int PRIMARY KEY); CREATE TRIGGER arrival AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.enter();");
@@ -133,6 +166,8 @@ test('Explorer · code local non commité, empreinte rejouable, lecture bornée 
     assert.deepEqual(capture.structure.tables.map(t=>t.name),['loft']);
     assert.match(capture.structure.warnings.join(' '),/auth.users/);
     assert.equal(capture.structure.migrations.length,2);
+    assert.equal(first.state,'ready');
+    assert.equal((await readSource(pool,admin,project,source)).from_code,true);
     await Promise.all([syncProjectCode(pool,admin,project),syncProjectCode(pool,admin,project)]);
     assert.equal((await hist()).length,1);
     await writeFile(join(dir,'003_update.sql'),'ALTER TABLE public.loft ADD COLUMN seats int;');

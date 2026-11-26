@@ -54,20 +54,21 @@ export async function databaseRoute(pool:Pool,req:IncomingMessage,res:ServerResp
   }
   if(api){io.json(res,200,{sources:list});return true;}
   const projects=await listWorkspaceProjects(pool,actor);
-  const area=project?projects.find(p=>p.id===project)?.name:'Studio interne';
+  const area=project?projects.find(p=>p.id===project)?.name:'Tous les projets autorisés';
   const code=(await pool.query<{project_id:string;id:string;label:string}>(`SELECT project_id,id,label FROM explorer_sources
     WHERE project_id=ANY($1::text[]) AND created_by='studio-code' AND revoked_at IS NULL ORDER BY label`,[project?[project]:actor.projectIds])).rows;
   const rows=orderedProjects(projects).filter(p=>!project||p.id===project).map(p=>{
     const scan=lastCodeScan(pool,p.id);
     const links=code.filter(s=>s.project_id===p.id).map(s=>`<a href="/projects/${e(p.id)}/database?source=${s.id}">${e(s.label.replace(/^Code local · /,''))}</a>${scan&&!scan.sources.some(source=>source.id===s.id)?' (version antérieure)':''}`);
-    return `<tr><th><a href="/projects/${e(p.id)}/database">${e(p.name)}</a></th><td>${e(scan?.status??(links.length?'Structure disponible':'En attente du relevé'))}</td><td>${links.join(' · ')||'—'}</td></tr>`;
+    const status=scan?.state==='detected'?'Source détectée dans le code · '+scan.status:scan?.status;
+    return `<tr><th scope="row"><a href="/projects/${e(p.id)}/database">${e(p.name)}</a></th><td>${e(status??(links.length?'Structure disponible':'En attente du relevé'))}</td><td>${links.join(' · ')||'—'}</td></tr>`;
   }).join('');
   const discovery=`<section class="panel" id="depots"><header class="section-head"><h2>Structures du code local</h2>
     ${actor.accountRole==='viewer'?'':'<form method="post" action="'+base+'/sync"><button>Actualiser depuis le code</button></form>'}</header>
     <p>Le Studio relit les schémas SQL et Prisma des dossiers reliés toutes les cinq minutes, y compris les modifications locales. Chaque version conserve l’empreinte de ses fichiers.</p>
     <div class="table-wrap"><table><thead><tr><th>Projet</th><th>Dernier relevé</th><th>Ouvrir la structure</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-  const form=project&&actor.accountRole!=='viewer'?configure(base,connectionChoices(actor,project)):'';
+  const form=project&&actor.accountRole!=='viewer'?configure(base,connectionChoices(pool,actor,project)):'';
   io.html(res,200,layout('Database Explorer',`<header class="heading"><div><h1>Database Explorer</h1><p>${e(area)}</p></div></header>`+
-    discovery+(canSeeInternal||project?overview(base,list):'')+form,projects,project??'',true,'database'));
+    discovery+(canSeeInternal||project?overview(base,list,project?lastCodeScan(pool,project):undefined,!!project&&actor.accountRole!=='viewer'):'')+form,projects,project??'',true,'database'));
   return true;
 }

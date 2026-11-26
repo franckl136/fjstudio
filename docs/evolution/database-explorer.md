@@ -26,11 +26,25 @@ Le Studio relit les dossiers reliés au démarrage puis toutes les cinq minutes.
 
 Le relevé recherche les fichiers `schema.prisma`, `prisma/schema.prisma`, `schema.sql`, `db/schema.sql`, `supabase/schema.sql` et les répertoires conventionnels de migrations PostgreSQL, Supabase et Prisma. Il visite également les modules de premier niveau dans `apps` et `packages`. Il analyse les définitions du disque, y compris celles en cours de rédaction. Une empreinte SHA-256 identifie l’ensemble des fichiers et leurs chemins. L’historique permet de comparer deux versions. Une source révoquée reste révoquée.
 
-Les éventuelles limites de représentation figurent dans chaque photographie. Un dépôt qui utilise un service hébergé sans déclarer de structure SQL ou Prisma reste visible dans le tableau.
+La source **Métadonnées extraites du code** correspond à une définition lue dans les fichiers du dépôt. Les limites figurent dans chaque photographie. Si le code déclare une intégration Notion sans fournir de structure SQL ou Prisma, le tableau signale sa détection et la fiche explique la limite. Si le dossier est inaccessible, le dernier relevé le signale. Une version précédente reste consultable avec sa date.
+
+### Lire l’état du relevé de projet
+
+| Situation observée | Action disponible |
+| --- | --- |
+| Le manifeste déclare Notion, Supabase, PostgreSQL ou Prisma | Lire la déclaration. Un compte Notion ou un service hébergé demande une preuve d’accès distincte. Si une définition PostgreSQL ou Prisma est disponible, un opérateur peut l’importer. |
+| Le dossier local contient une définition exploitable | Ouvrir le fichier ou la série de migrations depuis **Structures du code local**, puis consulter ses tables et vues. |
+| Un fichier est illisible, trop volumineux ou mal formé | Vérifier les permissions et le format dans le dépôt, puis **Actualiser depuis le code**. Une photographie antérieure reste consultable avec sa date. |
+| Le dossier n’est plus accessible | Vérifier son emplacement et son accessibilité sur le PC, puis relancer le relevé. |
+| Une structure a été importée | La fiche affiche **Schéma importé**, le format, l’environnement et la date de la version. |
+
+Les exclusions `.gitignore` du dépôt et de ses sous-dossiers sont évaluées avant lecture du contenu avec le Git installé sur le PC. Seuls les chemins conventionnels sont candidats. Les fichiers d’environnement et les chemins explicitement nommés comme secrets ou identifiants sont exclus. Le catalogue interne et ses opérations de maintenance sont présentés sur la vue globale aux administrateurs.
+
+La recette **F08** se lance avec `node --env-file=.env.local scripts/explorer-discovery-browser.mjs`. Sur PostgreSQL isolé 55453, elle crée deux dossiers synthétiques reproduisant les configurations Notion et Supabase. Elle vérifie les messages et les actions à 1440 × 900 et 390 × 844, puis le fichier illisible, le dossier inaccessible, l’import et la séparation du catalogue interne.
 
 ## Importer une source de projet
 
-Ouvrez la fiche d’un projet puis son Database Explorer, ou choisissez le projet sur la page d’accueil du module. Dépliez **Importer un schéma de projet**. Donnez un nom de source et un environnement. La référence facultative accepte un commit ou un nom de fichier SQL/Prisma. Les utilisateurs disposant d’un accès en écriture au projet peuvent importer. Un lecteur peut consulter les instantanés de ses projets.
+Ouvrez la fiche d’un projet puis son Database Explorer, ou choisissez le projet sur la page d’accueil du module. Dépliez **Importer un schéma de projet**. Donnez un nom de source et un environnement. La référence facultative accepte un commit ou un nom de fichier SQL/Prisma. Pour une nouvelle fixture, cochez **Cette nouvelle source sert de démonstration**. Cet usage est conservé pour ses versions suivantes. La mention du projet synthétique, lorsqu’elle s’applique, est affichée séparément de la provenance des données. Les utilisateurs disposant d’un accès en écriture au projet peuvent importer. Un lecteur peut consulter les instantanés de ses projets.
 
 | Adaptateur | Matériel conservé |
 | --- | --- |
@@ -41,7 +55,7 @@ Ouvrez la fiche d’un projet puis son Database Explorer, ou choisissez le proje
 
 Les analyseurs WASM travaillent hors ligne. Le parseur PostgreSQL est `libpg-query` 18.2.7 (MIT), le moteur de schéma Prisma est `@prisma/prisma-schema-wasm` 7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7 (Apache-2.0). Leurs versions et intégrités sont épinglées dans le fichier de verrouillage npm. Un import ne lance aucune instruction SQL, fonction, générateur Prisma ou connexion déclarée dans le document. La source originale n’est pas conservée.
 
-La projection SQL est partielle. Les instructions non modélisées sont signalées. Les projections et dépendances d’une vue, les index implicites, les valeurs calculées et la sémantique complète des expressions demandent une introspection réelle. Pour Prisma, le parseur accepte le format PostgreSQL avec datasource et URL déclarée dans le fichier ou fournie séparément par prisma.config ; les fonctions, triggers, policies et le RLS restent inconnus. Une migration Git est importée explicitement avec sa référence ; le Studio n’extrait pas automatiquement les migrations d’un projet externe.
+La projection SQL est partielle. Les instructions non modélisées sont signalées. Les projections et dépendances d’une vue, les index implicites, les valeurs calculées et la sémantique complète des expressions demandent une introspection réelle. Pour Prisma, le parseur accepte le format PostgreSQL avec datasource et URL déclarée dans le fichier ou fournie séparément par prisma.config. Les fonctions, triggers, policies et le RLS restent inconnus. Une migration importée manuellement peut fournir sa référence. Les répertoires de migrations reconnus dans les dépôts locaux reliés sont relevés automatiquement.
 
 ## Configurer une introspection locale de projet
 
@@ -53,7 +67,7 @@ L’administrateur de l’instance peut déclarer une liste explicite de sources
 
 Placez la liste dans `STUDIO_EXPLORER_CONNECTIONS`. La variable citée contient une URL `postgresql://<utilisateur>:<secret>@127.0.0.1:<port>/<base>`. Réservez un rôle différent à chaque source, doté de CONNECT et de USAGE sur les schémas retenus. Le contrôle refuse les rôles privilégiés, les membres d’autres rôles, les propriétaires et ceux dotés de droits d’écriture ou de lecture de lignes dans les schémas applicatifs. Ne modifiez pas les ACL d’une base existante pour activer l’outil sans l’accord de son responsable.
 
-L’action **Introspecter** sur le projet est réservée à un administrateur autorisé. La configuration seule ne déclenche aucune connexion. L’instance accepte les environnements local, développement et test sur IPv4 loopback. Les relevés distants, de staging et de production passent ici par import de métadonnées. Aucune URL libre ni console SQL n’est proposée. Une photographie de projet n’implique aucune permission de modifier le dépôt ou la source inspectée.
+L’action **Introspecter** sur le projet est réservée à un administrateur autorisé. La page indique la source configurée et la dernière tentative d’introspection de cette session serveur. Une réussite datée confirme la connexion au moment du relevé. Un échec affiche **Source inaccessible** et conserve la dernière photographie réussie. Le redémarrage du Core efface le statut de tentative en mémoire. La configuration seule ne déclenche aucune connexion. L’instance accepte les environnements local, développement et test sur IPv4 loopback. Les relevés distants, de staging et de production passent ici par import de métadonnées. Aucune URL libre ni console SQL n’est proposée. Une photographie de projet n’implique aucune permission de modifier le dépôt ou la source inspectée.
 
 Pour révoquer, ouvrez **Accès à cette source**, confirmez et utilisez **Révoquer la source**. La lecture des anciennes URL et les nouvelles captures sous cette identité sont alors bloquées. Retirez également la déclaration locale pour faire disparaître le bouton de configuration. La révocation conserve les versions en base pour la traçabilité et les sauvegardes. Une source encore autorisée peut être configurée sous une nouvelle identité par le responsable.
 

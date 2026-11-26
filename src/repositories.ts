@@ -62,7 +62,7 @@ export async function linkedRepositoryDirectory(db:PoolClient,actor:Operator,pro
   return policy.directory;
 }
 
-function gitProgram(source: string) {
+export function gitProgram(source: string) {
   const windows = process.platform === 'win32';
   const name = windows ? 'git.exe' : 'git';
   // Resolve from the host installation, never from the repository or its node_modules.

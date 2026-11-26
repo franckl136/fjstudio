@@ -25,10 +25,13 @@ function configured():Target[] {
     secrets.add(r.secret);identities.add(key);
   }return rows;
 }
-export function connectionChoices(actor:Operator,project:string) {
+type Attempt={at:Date;ok:boolean};
+const attempts=new WeakMap<pg.Pool,Map<string,Attempt>>();
+const attemptKey=(r:Pick<Target,'project'|'environment'|'label'>)=>JSON.stringify([r.project,r.environment,r.label]);
+export function connectionChoices(pool:pg.Pool,actor:Operator,project:string) {
   assertProject(actor,project);
   if(actor.accountRole!=='admin')return [];
-  return configured().filter(r=>r.project===project).map(r=>({environment:r.environment,label:r.label}));
+  return configured().filter(r=>r.project===project).map(r=>({environment:r.environment,label:r.label,attempt:attempts.get(pool)?.get(attemptKey(r))}));
 }
 export async function inspectDedicated(dsn:string,schemas:string[]) {
   let url:URL;try{url=new URL(dsn);}catch{throw invalid('Connexion PostgreSQL de lecture indisponible.');}
@@ -58,5 +61,15 @@ export async function refreshConnection(pool:pg.Pool,actor:Operator,project:stri
   assertProject(actor,project);
   const target=configured().find(s=>s.project===project&&s.environment===environment&&s.label===label);
   if(!target)throw notFound();
-  return captureProject(pool,actor,project,environment,label,()=>inspectDedicated(process.env[target.secret]??'',target.schemas));
+  return captureProject(pool,actor,project,environment,label,async()=>{
+    let ok=false;
+    try {
+      const structure=await inspectDedicated(process.env[target.secret]??'',target.schemas);
+      ok=true;
+      return structure;
+    }finally{
+      if(!attempts.has(pool))attempts.set(pool,new Map());
+      attempts.get(pool)!.set(attemptKey(target),{at:new Date(),ok});
+    }
+  });
 }

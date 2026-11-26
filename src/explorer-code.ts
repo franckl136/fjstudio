@@ -1,3 +1,5 @@
+import { access } from 'node:fs/promises';
+import { withFileRules,type Eligible } from './explorer-file-rules.ts';
 import { createHash } from 'node:crypto';
 import { checked,names,moduleRoots,localBytes } from './local-project-files.ts';
 import type { Pool } from 'pg';
@@ -10,32 +12,45 @@ import { invalid,type SchemaModel } from './explorer-model.ts';
 import { storeCodeSnapshot } from './explorer-store.ts';
 
 type Definition={path:string;files:string[];origin:'sql'|'prisma'};
-type Result={project:string;status:string;sources:{path:string;id:string;updated:boolean}[]};
-const recent=new WeakMap<Pool,Map<string,Result>>();
-export async function codeDefinitions(root:string):Promise<Definition[]> {
+export type CodeScan={project:string;state:'ready'|'detected'|'empty'|'unavailable'|'unreadable'|'unlinked';status:string;sources:{path:string;id:string;updated:boolean}[]};
+const recent=new WeakMap<Pool,Map<string,CodeScan>>();
+export async function codeDefinitions(root:string,eligible?:Eligible):Promise<Definition[]> {
+  if(!eligible)return withFileRules(root,rules=>codeDefinitions(root,rules));
   const groups:Definition[]=[];
   const roots=await moduleRoots(root);
+  const schemaNames=['prisma/schema.prisma','schema.prisma','schema.sql','db/schema.sql','supabase/schema.sql'];
+  const migrationDirs=['supabase/migrations','migrations','db/migrations','prisma/migrations'];
+  const allowed=await eligible(roots.flatMap(prefix=>[...schemaNames,...migrationDirs.map(p=>p+'/')].map(name=>prefix+name)));
   for(const prefix of roots){
     let prisma=false;
-    for(const name of ['prisma/schema.prisma','schema.prisma','schema.sql','db/schema.sql','supabase/schema.sql']){
+    for(const name of schemaNames){
       const path=prefix+name;
+      if(!allowed.has(path))continue;
       if((await checked(root,path))?.isFile()){
         const origin=name.endsWith('.prisma')?'prisma':'sql';
         groups.push({path,files:[path],origin});
         if(origin==='prisma')prisma=true;
       }
     }
-    for(const name of ['supabase/migrations','migrations','db/migrations','prisma/migrations']){
+    for(const name of migrationDirs){
       if(name==='prisma/migrations' && prisma)continue;
       const path=prefix+name;
+      if(!allowed.has(path+'/'))continue;
       let files:string[];
       if(name==='prisma/migrations'){
         files=[];
         for(const child of await names(root,path,true)){
           const file=path+'/'+child+'/migration.sql';
-          if(/^\d/.test(child)&&(await checked(root,file))?.isFile())files.push(file);
+          if(/^\d/.test(child))files.push(file);
         }
       }else files=(await names(root,path,false)).map(file=>path+'/'+file);
+      const eligibleFiles=await eligible(files);
+      files=[...eligibleFiles];
+      if(name==='prisma/migrations'){
+        const present:string[]=[];
+        for(const file of files)if((await checked(root,file))?.isFile())present.push(file);
+        files=present;
+      }
       if(files.length>160)throw invalid('Trop de migrations pour une source.');
       if(files.length)groups.push({path,files,origin:'sql'});
     }
@@ -64,27 +79,35 @@ async function readDefinition(root:string,def:Definition){
   return {reference:hash.digest('hex'),build};
 }
 export function lastCodeScan(pool:Pool,project:string){return recent.get(pool)?.get(project);}
-export async function syncProjectCode(pool:Pool,actor:Operator,project:string):Promise<Result>{
+export async function syncProjectCode(pool:Pool,actor:Operator,project:string):Promise<CodeScan>{
   assertProject(actor,project);
   if(actor.accountRole==='viewer')throw new DomainError(403,'schema_readonly','Ce compte dispose d’un accès en lecture.');
-  let result:Result;
+  let result:CodeScan;
   try {
-    result=await transaction(pool,async c=>{
+    result=await transaction<CodeScan>(pool,async c=>{
       await c.query('SELECT pg_advisory_xact_lock(64834,hashtext($1))',[project]);
       const root=await linkedRepositoryDirectory(c,actor,project);
-      const sources:Result['sources']=[];
-      if(!root)return {project,status:'Aucun dépôt local relié',sources};
-      const definitions=await codeDefinitions(root);
-      for(const def of definitions){
-        const input=await readDefinition(root,def);
-        const entry=await storeCodeSnapshot(c,actor,project,def.path,def.origin,input.reference,input.build);
-        if(entry)sources.push({path:def.path,id:entry.source,updated:entry.updated});
-      }
-      const hints=definitions.length?[]:(await inspectStack(root)).storage;
-      return {project,status:sources.length?'Structure disponible':hints.length?hints.join(' · '):'Aucune définition SQL ou Prisma reconnue',sources};
+      const sources:CodeScan['sources']=[];
+      if(!root)return {project,state:'unlinked',status:'Aucun dépôt local relié',sources};
+      try{await access(root);}catch{return {project,state:'unavailable',status:'Source indisponible · dossier local inaccessible',sources};}
+      return withFileRules<CodeScan>(root,async eligible=>{
+        const definitions=await codeDefinitions(root,eligible);
+        for(const def of definitions){
+          const input=await readDefinition(root,def);
+          const entry=await storeCodeSnapshot(c,actor,project,def.path,def.origin,input.reference,input.build);
+          if(entry)sources.push({path:def.path,id:entry.source,updated:entry.updated});
+        }
+        const stack=definitions.length?undefined:await inspectStack(root,eligible);
+        const hints=[...(stack?.storage??[])];
+        for(const tool of stack?.tools??[])if(['Supabase','PostgreSQL','Prisma'].includes(tool))hints.push('Dépendance '+tool+' déclarée');
+        if(stack?.status==='unavailable'||stack?.status==='partial')return {project,state:'unreadable',status:'Fichier illisible · manifeste ou définition du projet',sources};
+        return {project,state:sources.length?'ready':hints.length?'detected':'empty',status:sources.length?'Source locale accessible · structure découverte dans le code':hints.length?hints.join(' · '):definitions.length?'Définitions connues sans source consultable':'Aucune définition SQL ou Prisma reconnue',sources};
+      });
     });
   } catch(error){
-    result={project,status:error instanceof DomainError?error.message:'Lecture du dossier temporairement indisponible',sources:[]};
+    const unreadable=error instanceof DomainError?error.code==='schema_input':['EACCES','EPERM','EISDIR','ENOENT'].includes((error as NodeJS.ErrnoException).code??'');
+    result=unreadable?{project,state:'unreadable',status:'Fichier illisible · définition SQL, Prisma ou manifeste inexploitable',sources:[]}:
+      {project,state:'unavailable',status:'Source indisponible · vérifiez le dossier relié et sa configuration',sources:[]};
   }
   if(!recent.has(pool))recent.set(pool,new Map());
   recent.get(pool)!.set(project,result);
@@ -97,7 +120,7 @@ export async function syncLinkedCode(pool:Pool,actor?:Operator) {
       WHERE ($1::text[] IS NULL OR r.project_id=ANY($1)) AND
         (NOT $2::boolean OR p.id NOT IN ('a','b') OR p.context->>'classification' IS DISTINCT FROM 'synthetic')
       ORDER BY r.project_id`,[actor?.projectIds??null,process.env.STUDIO_ARCHIVE_DEMOS==='1'])).rows;
-  const results:Result[]=[];
+  const results:CodeScan[]=[];
   for(const {project_id} of projects){
     results.push(await syncProjectCode(pool,actor??{id:'studio-code',accountRole:'operator',projectIds:[project_id]},project_id));
   }

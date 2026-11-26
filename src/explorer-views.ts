@@ -1,3 +1,5 @@
+import type { CodeScan } from './explorer-code.ts';
+import type { connectionChoices } from './explorer-connections.ts';
 import { e,date } from './views.ts';
 import { cardinality,differences,schemaSignals,type SchemaModel,type Table } from './explorer-model.ts';
 import type { Snapshot,Source,Version } from './explorer-store.ts';
@@ -8,27 +10,49 @@ const field=(s:string,value:unknown)=>'<dt>'+e(s)+'</dt><dd>'+e(value)+'</dd>';
 function grid(titles:string[],rows:unknown[][]) {
   return rows.length?'<div class="table-wrap"><table><thead><tr>'+titles.map(s=>'<th scope="col">'+e(s)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(td).join('')+'</tr>').join('')+'</tbody></table></div>':'<p>Aucun élément relevé.</p>';
 }
-export function configure(base:string,options:{environment:string;label:string}[]) {
+export function configure(base:string,options:ReturnType<typeof connectionChoices>) {
   return `<section class="panel"><details><summary>Importer un schéma de projet</summary>
     <p>Le Studio analyse le texte localement et conserve une photographie de sa structure. Pour compléter une source SQL, choisissez « Migration » et reprenez son nom et son environnement.</p>
-    <form method="post" action="${base}/import"><label>Nom de la source<input name="label" maxlength="100" required></label>
+    <form id="schema-import" method="post" action="${base}/import"><label>Nom de la source<input name="label" maxlength="100" required></label>
     <label>Environnement<select name="environment">${Object.entries(envs).filter(([k])=>k!=='studio').map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')}</select></label>
     <label>Format<select name="origin"><option value="sql">Schéma SQL complet</option><option value="migration">Migration SQL</option><option value="prisma">Modèle Prisma PostgreSQL</option></select></label>
     <label>Commit ou nom de fichier (facultatif)<input name="reference" maxlength="115"></label>
+    <label><input type="checkbox" name="demonstration" value="yes"> Cette nouvelle source sert de démonstration</label>
     <label>Définition du schéma<textarea name="document" rows="8" required spellcheck="false"></textarea></label><button>Importer la structure</button></form></details>
-    ${options.map(o=>`<form method="post" action="${base}/capture"><input type="hidden" name="environment" value="${e(o.environment)}"><input type="hidden" name="label" value="${e(o.label)}"><button>Introspecter ${e(o.label)} · ${e(envs[o.environment])}</button></form>`).join('')}</section>`;
+    ${options.map(o=>`<form method="post" action="${base}/capture"><input type="hidden" name="environment" value="${e(o.environment)}"><input type="hidden" name="label" value="${e(o.label)}"><p><strong>Source configurée</strong> · ${e(o.label)} · ${e(envs[o.environment])}. ${o.attempt?(o.attempt.ok?'Connexion confirmée':'Source inaccessible')+' lors de la tentative du '+date(o.attempt.at)+'.':'Aucune tentative observée depuis le démarrage du Studio.'}</p><button>Introspecter ${e(o.label)} · ${e(envs[o.environment])}</button></form>`).join('')}</section>`;
 }
-export function overview(base:string,list:Source[]) {
-  if(!list.length)return '<section class="panel"><p>Aucune photographie disponible. Pour la base interne, la maintenance peut effectuer une capture. Pour un projet, choisissez une source autorisée.</p></section>';
-  return '<section class="panel"><h2>Sources</h2><ul class="work-feed">'+list.map(s=>`<li><a href="${base}?source=${s.id}">${e(s.label)}</a><small>${e(envs[s.environment])} · ${e(origins[s.origin])}</small></li>`).join('')+'</ul></section>';
+export function provenance(s:Source){
+  if(s.from_code)return 'Métadonnées extraites du code · '+(s.origin==='prisma'?'Prisma':'SQL');
+  if(s.origin==='postgresql'||s.origin==='maintenance')return 'Connexion confirmée au moment de la capture · '+origins[s.origin];
+  return (s.demonstration?'Source de démonstration · ':'')+'Schéma importé · '+(origins[s.origin]??s.origin);
+}
+export function overview(base:string,list:Source[],scan?:CodeScan,canImport=false) {
+  const internal=base==='/database';
+  let message='';
+  if(!internal && scan?.state==='detected'){
+    message=scan.status+'. Aucun schéma SQL ou Prisma exploitable dans les fichiers locaux observés. '+
+      (scan.status.includes('Notion')?'L’accès au compte Notion n’a pas été vérifié.':'La déclaration dans le dépôt ne confirme pas la connexion au service.');
+  }else if(!internal && scan?.state==='unavailable'){
+    message='Source indisponible. Vérifiez que le dossier relié est accessible sur ce PC, puis actualisez depuis le code.';
+  }else if(!internal && scan?.state==='unreadable'){
+    message='Fichier illisible. Vérifiez le format et les permissions des définitions SQL, Prisma et du manifeste, puis actualisez depuis le code.';
+  }else if(!list.length){
+    if(internal)message='Aucune photographie de la base interne du Studio. La maintenance peut en effectuer une capture.';
+    else if(scan?.state==='empty')message='La lecture du dépôt n’a fourni aucune structure SQL ou Prisma consultable.';
+    else if(scan?.state==='unlinked')message='Ce projet ne dispose pas de dossier local relié.';
+    else message='Aucune photographie de structure disponible pour ce projet.';
+  }
+  const notice=message?'<section class="panel"><h2>Disponibilité du schéma</h2><p>'+e(message)+'</p>'+
+    (!internal && canImport?'<p>Si vous disposez d’une définition PostgreSQL ou Prisma PostgreSQL, vous pouvez <a href="#schema-import">importer un schéma de ce projet</a>.</p>':'')+'</section>':'';
+  return notice+(list.length?'<section class="panel"><h2>'+(internal?'Catalogue interne du Studio':'Sources du projet')+'</h2><ul class="work-feed">'+list.map(s=>`<li><a href="${base}?source=${s.id}">${e(s.label)}</a><small>${e(envs[s.environment])} · ${e(provenance(s))}${s.synthetic_project?' · Projet de démonstration synthétique':''}</small></li>`).join('')+'</ul></section>':'');
 }
 export function renderSnapshot(base:string,s:Source,h:Snapshot,history:Version[],params:URLSearchParams,prior?:Snapshot) {
   const m=h.structure,signal=schemaSignals(m);
   const query=(extra:Record<string,string>)=>base+'?'+e(new URLSearchParams({source:s.id,snapshot:h.id,...extra}).toString());
   const hidden='<input type="hidden" name="source" value="'+s.id+'"><input type="hidden" name="snapshot" value="'+h.id+'">';
-  const nav=`<section class="panel"><h2>${e(s.label)}</h2><p>${e(envs[s.environment])} · ${e(origins[s.origin])} · ${e(m.engine)} ${e(m.version)} · ${date(h.captured_at)}</p>
+  const nav=`<section class="panel"><h2>${e(s.label)}</h2><p>${e(envs[s.environment])} · ${e(provenance(s))}${s.synthetic_project?' · Projet de démonstration synthétique':''} · ${e(m.engine)} ${e(m.version)} · ${date(h.captured_at)}</p>
     <p>${m.schemas.length} schéma(s) · ${signal.tables} table(s) · ${signal.views} vue(s) · ${signal.foreignKeys} clés étrangères · ${signal.indexes} index · ${signal.triggers} triggers · ${m.functions.length} fonctions</p>
-    ${h.reference?'<p>'+(s.label.startsWith('Code local · ')?'Empreinte SHA-256 des fichiers locaux':'Référence')+' · '+e(h.reference)+'</p>':''}
+    ${h.reference?'<p>'+(s.from_code?'Empreinte SHA-256 des fichiers locaux':'Référence')+' · '+e(h.reference)+'</p>':''}
     <nav class="actions" aria-label="Vues du schéma"><a class="button" href="${query({})}">Tables et vues</a><a class="button" href="${query({view:'erd'})}">Diagramme relationnel</a>
     <a class="button" href="${query({view:'security'})}">Sécurité et RLS</a><a class="button" href="${query({view:'history'})}">Historique</a></nav>
     ${m.warnings.length?'<details><summary>Limites de cette photographie ('+m.warnings.length+')</summary><ul>'+m.warnings.map(w=>'<li>'+e(w)+'</li>').join('')+'</ul></details>':''}</section>`;

@@ -9,7 +9,7 @@ export type Policy={name:string;command:string;roles:string[];using:string;check
 export type Trigger={name:string;routine:string;state:string;signature:string};
 export type Routine={schema:string;name:string;arguments:string;definer:boolean;signature:string};
 export type Table={schema:string;name:string;kind:'table'|'view'|'materialized view'|'foreign table';columns:Column[];constraints:Constraint[];indexes:Index[];policies:Policy[];triggers:Trigger[];rls:boolean|null;forced:boolean;comment:boolean;depends:string[];privileges:string[]};
-export type SchemaModel={engine:string;version:string;schemas:string[];tables:Table[];functions:Routine[];warnings:string[];migrations:string[]};
+export type SchemaModel={engine:string;version:string;schemas:string[];tables:Table[];functions:Routine[];warnings:string[];migrations:string[];demonstration?:boolean};
 export const environments=['local','development','test','staging','production'] as const;
 export type Environment=typeof environments[number];
 export const invalid=(message:string)=>new DomainError(400,'schema_input',message);
