@@ -132,7 +132,10 @@ export async function syncProjectCode(pool:Pool,actor:Operator,project:string):P
 export async function syncLinkedCode(pool:Pool,actor?:Operator) {
   if(actor?.accountRole==='viewer')throw new DomainError(403,'schema_readonly','Ce compte dispose d’un accès en lecture.');
   const projects=(await pool.query<{project_id:string}>(
-    'SELECT project_id FROM project_repositories WHERE ($1::text[] IS NULL OR project_id=ANY($1)) ORDER BY project_id',[actor?.projectIds??null])).rows;
+    `SELECT r.project_id FROM project_repositories r JOIN projects p ON p.id=r.project_id
+      WHERE ($1::text[] IS NULL OR r.project_id=ANY($1)) AND
+        (NOT $2::boolean OR p.id NOT IN ('a','b') OR p.context->>'classification' IS DISTINCT FROM 'synthetic')
+      ORDER BY r.project_id`,[actor?.projectIds??null,process.env.STUDIO_ARCHIVE_DEMOS==='1'])).rows;
   const results:Result[]=[];
   for(const {project_id} of projects){
     results.push(await syncProjectCode(pool,actor??{id:'studio-code',accountRole:'operator',projectIds:[project_id]},project_id));

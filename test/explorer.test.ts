@@ -14,7 +14,7 @@ import { once } from 'node:events';
 import { mkdtemp,mkdir,writeFile,rm,link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { syncProjectCode } from '../src/explorer-code.ts';
+import { syncLinkedCode,syncProjectCode } from '../src/explorer-code.ts';
 import type { AddressInfo } from 'node:net';
 
 const sql=`CREATE TABLE public.ateliers (site int, id int, PRIMARY KEY(site,id));
@@ -118,6 +118,13 @@ test('Explorer · code local non commité, empreinte rejouable, lecture bornée 
     await writeFile(join(dir,'001_initial.sql'),"CREATE EXTENSION IF NOT EXISTS pgcrypto;");
     await writeFile(join(dir,'002_rooms.sql'),"CREATE TABLE public.loft(id int PRIMARY KEY); CREATE TRIGGER arrival AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.enter();");
     await writeFile(join(dir,'002_rooms.down.sql'),"DROP TABLE public.loft;");
+    const previousArchive=process.env.STUDIO_ARCHIVE_DEMOS;
+    try{
+      process.env.STUDIO_ARCHIVE_DEMOS='1';
+      assert.deepEqual(await syncLinkedCode(pool),[]);
+    }finally{
+      if(previousArchive===undefined)delete process.env.STUDIO_ARCHIVE_DEMOS;else process.env.STUDIO_ARCHIVE_DEMOS=previousArchive;
+    }
     const first=await syncProjectCode(pool,admin,project);
     assert.equal(first.sources.length,1,first.status);
     const source=first.sources[0].id;
