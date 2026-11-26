@@ -32,8 +32,8 @@ function scoped(data: Workspace, filter?: ProjectId) { return data.projects.filt
 function projectFilter(path: string, data: Workspace, filter?: ProjectId, query?:URLSearchParams) {
   if (!data.projects.length) return '';
   return `<form class="scope-filter" action="${path}" method="get"><label for="scope-project">Projet</label>
-    ${(path==='/office'?['salle','follow','liste']:['git']).map(key=>query?.has(key)?`<input type="hidden" name="${key}" value="${e(query.get(key)??'')}">`:'').join('')}
-    <select id="scope-project" name="project"><option value="">Tous les projets autorisés</option>
+    ${(path==='/office'?['salle','follow','liste','inactifs']:['git']).map(key=>query?.has(key)?`<input type="hidden" name="${key}" value="${e(query.get(key)??'')}">`:'').join('')}
+    <select id="scope-project" name="project"><option value="">${path==='/office'&&query?.get('inactifs')!=='1'?'Projets actifs':'Tous les projets autorisés'}</option>
     ${orderedProjects(data.projects).map(p => `<option value="${e(p.id)}" ${filter === p.id ? 'selected' : ''}>${e(p.name)}</option>`).join('')}</select>
     <button>Afficher</button></form>`;
 }
@@ -177,22 +177,27 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     data.projects,filter,true,'workspace');
 }
 
-export function stationUrl(desk: Desk, following:boolean, filter?: ProjectId) {
+export function stationUrl(desk: Desk, following:boolean, filter?: ProjectId,includeInactive=false) {
   const params = new URLSearchParams({station:desk.id,stationProject:desk.projectId,role:desk.role});
   if (filter) params.set('project',filter);
+  if (includeInactive) params.set('inactifs','1');
   if (!following) params.set('follow','0');
   return '/office?'+params.toString()+'#poste';
 }
-function station(desk: Desk, data: Workspace, following:boolean, filter?: ProjectId) {
+function station(desk: Desk, data: Workspace, following:boolean, filter?: ProjectId, includeInactive=false) {
   const occupied = desk.state === 'working' || desk.state === 'verifying';
   const task = desk.records.find(r=>r.live);
-  return `<a class="office-station ${occupied ? 'occupied' : ''}" data-state="${e(desk.state)}" href="${e(stationUrl(desk,following,filter))}">
+  return `<a class="office-station ${occupied ? 'occupied' : ''}" data-state="${e(desk.state)}" href="${e(stationUrl(desk,following,filter,includeInactive))}">
     <span class="room-scene" aria-hidden="true"><i class="agent-position"><i class="agent-sprite"></i></i></span>
     <span class="station-text"><strong>${e(deskName(desk))}</strong><small>${label(desk.role)} · ${e(projectName(data,desk.projectId))}</small>${badge(desk.state)}
     ${task?'<span class="station-task">'+label(task.task)+'</span>':''}</span></a>`;
 }
 export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId) {
   const presence=agentPresence(data.agents);
+  const includeInactive=query.get('inactifs')==='1';
+  const visibility=new URLSearchParams(query);
+  for (const key of ['station','stationProject','role']) visibility.delete(key);
+  if(includeInactive)visibility.delete('inactifs');else visibility.set('inactifs','1');
   const selected = data.agents.find(a => query.get('station') === a.id && query.get('stationProject') === a.projectId && query.get('role') === a.role);
   const following = query.get('follow') !== '0';
   const url = new URLSearchParams(query);
@@ -200,16 +205,17 @@ export function officePage(data: Workspace, query: URLSearchParams, filter?: Pro
   const stations = (role: 'preparer'|'verifier') => {
     const members = data.agents.filter(d => d.role === role);
     return `<section class="office-zone" data-room="${role}"><h2>${role === 'preparer' ? 'Atelier de préparation' : 'Salle de vérification'}</h2>
-      ${members.length ? `<div class="station-group">${members.map(d => station(d,data,following,filter)).join('')}</div>` : '<div class="room-scene" aria-hidden="true"></div><p class="vacant">Aucun poste enregistré.</p>'}</section>`;
+      ${members.length ? `<div class="station-group">${members.map(d => station(d,data,following,filter,includeInactive)).join('')}</div>` : '<div class="room-scene" aria-hidden="true"></div><p class="vacant">Aucun poste enregistré.</p>'}</section>`;
   };
   const reviews=data.alerts.filter(m=>m.status==='needs_approval'||m.status==='blocked').slice(0,4);
   return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">${presence.connected} connectés · ${presence.available} disponibles · ${presence.busy} occupés · relevé ${date(data.capturedAt)}</p></div>
     ${projectFilter('/office',data,filter,query)}</header>
+    ${filter?'':`<p>${includeInactive?'Tous les projets autorisés':'Projets actifs'} · <a href="/office?${e(visibility.toString())}">${includeInactive?'Masquer les projets inactifs':'Inclure les projets inactifs'}</a></p>`}
     <div class="office-controls"><a class="button" href="/office?${e(url.toString())}">${following ? 'Mettre en pause' : 'Reprendre le direct'}</a>
     <span id="office-live" role="status">${following ? 'Dernier relevé' : 'Suivi en pause'}</span>
     <a href="/office?${e(query.toString())}">Actualiser</a>
     ${data.cursorSessions.length?'<a class="jump-cursor" href="#cursor">Sessions Cursor ↓</a>':''}</div>
-    ${officeScene(data,d=>stationUrl(d,following,filter),query)}
+    ${officeScene(data,d=>stationUrl(d,following,filter,includeInactive),query)}
     ${cursorDirectory(data.cursorSessions,data.projects)}
     <details id="postes-locaux" class="desk-directory" ${selected || query.get('liste')==='1' || data.agents.length<=4?'open':''}><summary>Postes locaux et affectations · ${data.agents.length}</summary>
     <div class="office-plan" data-follow="${following?'on':'off'}" aria-label="Plan de travail des agents">${stations('preparer')}${stations('verifier')}

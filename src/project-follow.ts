@@ -2,7 +2,7 @@ import type {Pool} from 'pg';
 import {DomainError,type Operator} from './contracts.ts';
 import {assertProject} from './database.ts';
 
-export const followLabels={priority:'Prioritaire',normal:'Suivi',standby:'En veille'} as const;
+export const followLabels={priority:'Prioritaire',normal:'Suivi',standby:'Inactif (en veille)'} as const;
 export type Follow={project_id:string;attention:keyof typeof followLabels;note:string;revision:number};
 export async function projectFollow(pool:Pool,actor:Operator,project:string){
   assertProject(actor,project);

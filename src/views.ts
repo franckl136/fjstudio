@@ -182,7 +182,7 @@ function resumeSection(project:Project, stack:Stack, follow:Follow|undefined, wr
     <a href="${base}/database">Sources de données</a><a href="/activity?project=${e(project.id)}">Journal du projet</a></div>
     ${personal&&writable?`<details class="follow-edit"><summary>Modifier mon suivi</summary><form method="post" action="${base}/follow">
     <input type="hidden" name="revision" value="${follow?.revision??0}">
-    <label>Place dans mon portefeuille<select name="attention">${Object.entries(followLabels).map(([key,title])=>'<option value="'+key+'"'+(key===attention?' selected':'')+'>'+title+'</option>').join('')}</select></label>
+    <p>Un projet inactif est masqué dans votre portefeuille en activité et votre Agent Office global. Vous pouvez le réactiver ici.</p><label>Place dans mon portefeuille<select name="attention">${Object.entries(followLabels).map(([key,title])=>'<option value="'+key+'"'+(key===attention?' selected':'')+'>'+title+'</option>').join('')}</select></label>
     <label>Ma prochaine action<input name="note" maxlength="280" value="${e(follow?.note??'')}"></label>
     <button>Enregistrer mon suivi</button></form></details>`:''}</section>`;
 }

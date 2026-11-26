@@ -77,12 +77,20 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     if (!get) throw new DomainError(405,'method','Méthode indisponible.');
     const project = url.searchParams.get('project') || undefined;
     if (project !== undefined && !isProjectId(project)) throw notFound();
+    const includeInactive=url.searchParams.get('inactifs')==='1';
+    let visibleActor=actor;
+    if(path==='/office' && !project && !includeInactive && actor.accountRole){
+      const inactive=await pool.query<{project_id:string}>(
+        "SELECT project_id FROM studio_project_follow WHERE account_id=$1 AND project_id=ANY($2::text[]) AND attention='standby'",[actor.id,actor.projectIds]);
+      const hidden=new Set(inactive.rows.map(row=>row.project_id));
+      visibleActor={...actor,projectIds:actor.projectIds.filter(id=>!hidden.has(id))};
+    }
     if(path==='/office' && !api && url.searchParams.get('loft')==='1') {
-      const data=await readLoft(pool,actor,io.runners??[],project);
-      io.html(res,200,officeScene(data,d=>stationUrl(d,url.searchParams.get('follow')!=='0',project),url.searchParams));
+      const data=await readLoft(pool,visibleActor,io.runners??[],project);
+      io.html(res,200,officeScene(data,d=>stationUrl(d,url.searchParams.get('follow')!=='0',project,includeInactive),url.searchParams));
       return true;
     }
-    const data = await readWorkspace(pool,actor,io.runners ?? [],project);
+    const data = await readWorkspace(pool,visibleActor,io.runners ?? [],project);
     if (api) {
       io.json(res,200,path === '/office' ? {capturedAt:data.capturedAt,agents:data.agents,cursorSessions:data.cursorSessions} : data);
     } else if (path === '/office') {

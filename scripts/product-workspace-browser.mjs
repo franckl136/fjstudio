@@ -448,6 +448,14 @@ try {
   assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),0);
   await admin.locator('.follow-filters').getByRole('link',{name:/En veille/}).click();
   assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),1);
+  await admin.goto(origin+'/office?follow=0');
+  assert.equal(await admin.locator('.loft-person[data-member^="a/"]').count(),0);
+  await admin.getByRole('link',{name:'Inclure les projets inactifs'}).click();
+  assert(await admin.locator('.loft-person[data-member^="a/"]').count()>0);
+  await admin.goto(origin+'/office?project=a&follow=0');
+  assert(await admin.locator('.loft-person[data-member^="a/"]').count()>0);
+  await operator.goto(origin+'/office?follow=0');
+  assert(await operator.locator('.loft-person[data-member^="a/"]').count()>0);
   results.activityJournal=await verifyActivityBrowser(operator,origin,screen);
   results.personalPortfolio='Priorité personnelle, note, veille et recette Notion depuis le manifeste';
   results.isolation = {differentProject:404,viewerMutation:403};
