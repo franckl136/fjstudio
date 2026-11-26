@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { DomainError, isProjectId, type ProjectId } from './contracts.ts';
 
 export const labDigest = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
+const labSamples = [{key:'studio-sample',entry:'fixtures/product-lab.html'}, {key:'studio-types',entry:'fixtures/product-lab.ts'}];
+export const labSampleKeys: readonly string[] = Object.freeze(labSamples.map(sample=>sample.key));
+export function isLabSample(key:string) { return labSampleKeys.includes(key); }
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -21,12 +24,11 @@ export function labSources(project: ProjectId): LabSource[] {
   let extra: unknown;
   try { extra = JSON.parse(process.env.STUDIO_LAB_SOURCES ?? '[]'); } catch { throw badConfig(); }
   if (!Array.isArray(extra) || extra.length > 40) throw badConfig();
-  const samples: LabSource[] = [{ project, key: 'studio-sample', directory: root, entry: 'fixtures/product-lab.html', ref: 'HEAD' }];
-  samples.push({project,key:'studio-types',directory:root,entry:'fixtures/product-lab.ts',ref:'HEAD'});
+  const samples: LabSource[] = labSamples.map(sample=>({...sample,project,directory:root,ref:'HEAD'}));
   const seen = new Set(samples.map(s => project + '/' + s.key));
   for (const value of extra) {
     if (!value || !isProjectId(value.project) || typeof value.key !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(value.key) ||
-        ['studio-sample','studio-types'].includes(value.key) || typeof value.directory !== 'string' || !isAbsolute(value.directory) ||
+        isLabSample(value.key) || typeof value.directory !== 'string' || !isAbsolute(value.directory) ||
         /^(?:\\\\|\/\/)/.test(value.directory) || typeof value.entry !== 'string' ||
         !/^(?:[a-zA-Z0-9_-]+\/){0,12}[a-zA-Z0-9_-]+\.(?:html|ts)$/.test(value.entry) ||
         typeof value.ref !== 'string' || !(value.ref === 'HEAD' || /^refs\/heads\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+$/.test(value.ref))) throw badConfig();
@@ -66,7 +68,7 @@ export async function readLabSnapshot(source: LabSource, requested?: string): Pr
     // Only the Studio's own install is allowed to use its already trusted linked worktree.
     // A registered candidate must not redirect .git into a different project's object store.
     const localGit = join(checkout,'.git');
-    const linkedStudio = ['studio-sample','studio-types'].includes(source.key) && relative(root, checkout) === '';
+    const linkedStudio = isLabSample(source.key) && relative(root, checkout) === '';
     if (!linkedStudio && (!(await lstat(localGit)).isDirectory() || relative(localGit, await realpath(localGit)) !== '')) throw badConfig();
     const commonPath = (await call('rev-parse', '--path-format=absolute', '--git-common-dir')).toString().trim();
     if (!isAbsolute(commonPath) || /^(?:\\\\|\/\/)/.test(commonPath)) throw badConfig();

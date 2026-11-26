@@ -4,7 +4,7 @@ import { assertProject, transaction } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
 import type { Follow } from './project-follow.ts';
 import { cursorPulls } from './cursor-sessions.ts';
-import { latestProjectActivity,readActivity } from './activity.ts';
+import { activityPreview,latestProjectActivity } from './activity.ts';
 
 export type DeskIdentity = {id: string; projectId: ProjectId; role: Role;engine?:'control'};
 export type MissionDigest = {id: string; project_id: ProjectId; objective: string; status: string; at: Date; engine: 'control' | 'a1'};
@@ -14,7 +14,7 @@ export type AssignmentRecord = {
   began: Date; finished: Date | null; state: string; live: boolean; engine: 'control' | 'a1'; objective: string;
 };
 type Progress = {project_id: ProjectId; state: string; total: number};
-type Lab = {project_id: ProjectId; id: string; profile: string; state: string; verdict: string | null; created_at: Date};
+type Lab = {project_id: ProjectId; id: string; profile: string; source_key: string; state: string; verdict: string | null; created_at: Date};
 export type Desk = DeskIdentity & {
   lastSeen: Date | null; state: 'unseen' | 'offline' | 'available' | 'working' | 'verifying';
   records: AssignmentRecord[]; running: number; configured: boolean;
@@ -117,8 +117,8 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
       SELECT project_id,state FROM control_tasks WHERE project_id=ANY($1::text[])
       UNION ALL SELECT project_id,status FROM steps WHERE project_id=ANY($1::text[])
     ) all_tasks GROUP BY project_id,state`,args)).rows;
-    const {events}=await readActivity(client,actor,filter,undefined,16);
-    const labs = (await client.query<Lab>(`SELECT DISTINCT ON (project_id) project_id,id,profile,state,verdict,created_at
+    const events=await activityPreview(client,actor,filter);
+    const labs = (await client.query<Lab>(`SELECT DISTINCT ON (project_id) project_id,id,profile,source_key,state,verdict,created_at
       FROM product_lab_runs WHERE project_id=ANY($1::text[]) ORDER BY project_id,created_at DESC,id DESC`,args)).rows;
     const proposals = (await client.query<{project_id: ProjectId; total: number}>(`SELECT project_id,count(*)::int AS total
       FROM knowledge_current WHERE project_id=ANY($1::text[]) AND status='proposed' GROUP BY project_id`,args)).rows;
