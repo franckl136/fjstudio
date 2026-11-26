@@ -160,8 +160,9 @@ export function loginPage(error?: string): string {
   </section>`);
 }
 
-export function errorPage(message: string): string {
-  return layout('Demande refusée', `<section class="panel login"><h1>Demande impossible</h1>
+export function errorPage(message: string, status?:number): string {
+  const heading=status===403?'Accès refusé':status===404?'Ressource indisponible':'Demande impossible';
+  return layout(heading, `<section class="panel login"><h1>${heading}</h1>
     <p role="alert">${e(message)}</p><a href="/">Retour au Studio</a></section>`);
 }
 

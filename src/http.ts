@@ -43,6 +43,7 @@ const moduleFiles:Record<string,[string,string]>={
   '/activity-assets/journal.css':['activity-journal.css','text/css; charset=utf-8'],
   '/form-assets/guard.js':['form-guard.js','text/javascript; charset=utf-8'],
   '/form-assets/drafts.js':['form-drafts.js','text/javascript; charset=utf-8'],
+  '/lab-assets/selection.js':['lab-selection.js','text/javascript; charset=utf-8'],
   '/control-assets/brief.js':['control-brief.js','text/javascript; charset=utf-8'],
   '/database-assets/erd.js':['explorer/erd.js','text/javascript; charset=utf-8'],
   '/database-assets/explorer.css':['explorer/explorer.css','text/css; charset=utf-8'],
@@ -181,8 +182,8 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
     }
     const draftAccess=!api && /^\/projects\/([a-z0-9-]+)\/draft-access\/(mission-new|mission-edit-[a-f0-9-]{36})$/.exec(url.pathname);
     if(draftAccess){
-      if(req.method!=='POST')fail(405,'method','Méthode indisponible.');
       if(!localDraftsEnabled())fail(404,'not_found','Fonction indisponible.');
+      if(req.method!=='POST')fail(405,'method','Méthode indisponible.');
       const [,project,form]=draftAccess;
       assertProject(actor,project);
       const fields=await body(req,'json');exactKeys(fields,'account');
@@ -319,7 +320,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         const [file,mime]=moduleFiles[path];
         send(res,200,mime,readFileSync(new URL('./'+file,import.meta.url)));return;
       }
-      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/database)$/.test(path)) {
+      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/(?:database|quality|lab))$/.test(path)) {
         res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'");
       }
       if (method==='GET' && (path==='/office' || path==='/activity' || /^\/projects\/[a-z0-9-]+\/control(?:\/[a-f0-9-]{36})?$/.test(path))) {
@@ -494,7 +495,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         console.error(JSON.stringify({event:'request_failed',correlation,code:typeof code==='string' && /^[A-Z0-9]{5}$/.test(code)?code:'internal'}));
       }
       if (isApi) json(res, problem.status, { error: { code: problem.code, message: problem.message } });
-      else html(res, problem.status, errorPage(problem.message));
+      else html(res, problem.status, errorPage(problem.message,problem.status));
     }
   }));
 }

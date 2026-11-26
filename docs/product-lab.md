@@ -2,10 +2,12 @@
 
 Dans le projet actif, **App Lab** prépare la capture d’une page HTML et **Quality Lab** exécute les contrôles du profil choisi. Les deux vues partagent les mêmes passages et les mêmes preuves PostgreSQL. Un compte lecteur peut ouvrir l’historique, le détail, les captures et les comparaisons. Un opérateur du projet peut demander un passage et gérer ses règles.
 
+Chaque choix de lancement indique la nature des données, le fichier et le profil. Le résumé sous la sélection donne la source, le commit complet, l’environnement d’exécution et les contrôles prévus. Le rapport présente les contrôles réellement exécutés et leur état. Le profil HTML statique lit un fichier Git, le profil visuel rend ce fichier dans Chromium et le profil TypeScript porte sur une unité autonome. Un exemple du Studio reste identifié comme démonstration dans le rapport, le journal, le portefeuille et les preuves proposées à Project Intelligence. Il est exclu des bilans de qualification sur fichier du projet.
+
 ## Premier passage
 
 1. Ouvrir **App Lab** dans un projet du Studio local. Sélectionner la source `studio-sample`. Le Studio fournit sa propre page synthétique « Planning de l’atelier » dans `fixtures/product-lab.html`.
-2. Laisser le commit vide pour utiliser la pointe de la référence locale au moment de la réservation. Une autre possibilité consiste à saisir les 40 caractères d’un commit accessible depuis cette référence.
+2. Dans le formulaire, laisser le commit vide pour conserver la révision affichée au choix du fichier. Le formulaire fige ce commit même si la branche avance avant le clic. Une autre possibilité consiste à saisir les 40 caractères d’un commit accessible depuis cette référence.
 3. Choisir **Préparer la preview**, puis **Actualiser** sur la fiche. Le worker local enregistre le verdict, les contrôles et une capture PNG de 960 × 600 pixels.
 4. Dans **Quality Lab**, choisir un autre profil ou une autre révision de la même source. Dès que deux passages compatibles sont terminés, la comparaison montre les mesures des deux passages et l’observation la plus récente. Le premier sélecteur propose le passage précédent et le second le plus récent.
 5. Pour exécuter un contrôle automatiquement, ouvrir **Configurer une règle**, choisir le profil, un intervalle de 5 minutes à 7 jours et le déclenchement. La règle « Quand le commit local change » vérifie la pointe au rythme choisi. La première vérification enregistre le commit de référence et déclenche un passage. La règle périodique peut reprendre le même commit. **Suspendre la règle** arrête les futurs déclenchements.

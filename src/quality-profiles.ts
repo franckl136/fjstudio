@@ -3,7 +3,7 @@ import type {Pool,PoolClient} from 'pg';
 import {DomainError,digestJson,type Operator} from './contracts.ts';
 import {assertId,assertProject,notFound,transaction} from './database.ts';
 import {detailLab,labProfiles} from './product-lab.ts';
-import {labSources} from './product-lab-source.ts';
+import {isLabSample,labSampleKeys,labSources} from './product-lab-source.ts';
 import {listCampaigns,readCampaign} from './product-campaign.ts';
 import {snapshot} from './explorer-store.ts';
 import {auditSchema} from './schema-quality.ts';
@@ -38,7 +38,6 @@ export type EvidenceSelection={lab:string|null;campaign:string|null;schema:strin
 type DB=Pool|PoolClient;
 const invalid=(s:string)=>new DomainError(400,'quality_profile',s);
 const conflict=()=>new DomainError(409,'quality_revision','Le profil a changé. Rechargez sa sélection.');
-const sample=(key:string)=>['studio-sample','studio-types'].includes(key);
 const profileKey=(k:string)=>{if(!Object.hasOwn(presets,k))throw notFound();};
 function write(actor:Operator,project:string){assertProject(actor,project);if(actor.accountRole==='viewer')throw new DomainError(403,'read_only','Accès en lecture.');}
 function revision(v:unknown) {
@@ -70,13 +69,13 @@ export async function profileCatalogue(pool:Pool,actor:Operator,project:string,k
   const [chosen,lab,schemas,campaigns,history]=await Promise.all([
     config(pool,project,key),
     pool.query<{id:string;source_key:string;profile:keyof typeof labProfiles;commit_sha:string;finished_at:Date}>(
-      "SELECT id,source_key,profile,commit_sha,finished_at FROM product_lab_runs WHERE project_id=$1 AND state='finished' AND source_key NOT IN ('studio-sample','studio-types') ORDER BY finished_at DESC,id LIMIT 80",[project]),
+      "SELECT id,source_key,profile,commit_sha,finished_at FROM product_lab_runs WHERE project_id=$1 AND state='finished' AND source_key <> ALL($2::text[]) ORDER BY finished_at DESC,id LIMIT 80",[project,labSampleKeys]),
     pool.query<{id:string;label:string;environment:string;captured_at:Date}>(`SELECT h.id,s.label,s.environment,h.captured_at FROM explorer_snapshots h JOIN explorer_sources s ON s.id=h.source_id
       WHERE s.project_id=$1 AND s.revoked_at IS NULL ORDER BY h.captured_at DESC,h.id LIMIT 100`,[project]),
     project==='a'?listCampaigns(pool,actor,project):[],
     pool.query<Pick<ReviewRow,'id'|'profile'|'actor'|'created_at'|'revision'>>('SELECT id,profile,revision,actor,created_at FROM quality_profile_reviews WHERE project_id=$1 ORDER BY created_at DESC,id DESC LIMIT 60',[project]),
   ]);
-  const permitted=labSources(project).filter(s=>!sample(s.key)).map(s=>({source:s.key,entry:s.entry}));
+  const permitted=labSources(project).filter(s=>!isLabSample(s.key)).map(s=>({source:s.key,entry:s.entry}));
   return {chosen,presets,controls,permitted,lab:lab.rows,schemas:schemas.rows,campaigns,history:history.rows};
 }
 function optionalId(v:unknown){
@@ -86,7 +85,7 @@ function optionalId(v:unknown){
 type Evidence={lab:Awaited<ReturnType<typeof detailLab>>|null;campaign:Awaited<ReturnType<typeof readCampaign>>|null;schema:Awaited<ReturnType<typeof snapshot>>|null};
 async function evidence(pool:Pool,actor:Operator,project:string,ref:EvidenceSelection,requireCurrent:boolean):Promise<Evidence>{
   const lab=ref.lab?await detailLab(pool,actor,project,ref.lab):null;
-  if(lab&&(lab.state!=='finished'||!lab.result||sample(lab.source_key)))throw invalid('Choisissez un passage terminé sur une source du projet.');
+  if(lab&&(lab.state!=='finished'||!lab.result||isLabSample(lab.source_key)))throw invalid('Choisissez un passage terminé sur une source du projet.');
   if(lab?.result&&(lab.result.commit!==lab.commit_sha||lab.result.sourceSha256!==lab.source_digest||lab.result.profileVersion!==lab.profile_version)){
     throw new DomainError(409,'quality_evidence','La révision indexée diffère du rapport de qualification.');
   }

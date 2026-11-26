@@ -1,5 +1,6 @@
 // Run against the local Compose service. All application reads and writes use a newly created test database.
 import assert from 'node:assert/strict';
+import {verifyWorkspaceNavigation} from './maturation-navigation-browser.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { execFileSync } from 'node:child_process';
@@ -7,6 +8,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
+import {verifyActivityBrowser} from './activity-browser-check.mjs';
 import { join } from 'node:path';
 import { composeDatabaseUrl } from './postgres-tools.ts';
 import { createPool } from '../src/config.ts';
@@ -150,8 +152,8 @@ try {
     page.setDefaultTimeout(7000);
     return page;
   }
-  const admin = await pageFor({width:1366,height:900});
-  const operator = await pageFor({width:1366,height:900});
+  const admin = await pageFor({width:1440,height:900});
+  const operator = await pageFor({width:1440,height:900});
   const viewer = await pageFor({width:390,height:844});
   await enroll(admin,principal.token,'admin-local');
   const opCode = await invite(admin,'navigateur-op','operator');
@@ -199,7 +201,7 @@ try {
   }
   await admin.locator('.project-home').click();
   assert.equal(admin.url(),origin+'/projects/b');
-  results.projectNavigation='Ordre commun, changement de projet dans sept espaces et retour à la fiche';
+  results.projectNavigation=await verifyWorkspaceNavigation(admin,origin,screen);
   await admin.goto(origin+'/office?project=b');
   assert.equal(await admin.locator('#cursor').count(),0);
   await admin.goto(origin+'/projects/a');
@@ -218,6 +220,8 @@ try {
   assert.equal((await viewer.goto(origin+'/projects/new')).status(),403);
   await operator.goto(origin+'/workspace');
   await operator.locator('nav.sidebar').getByRole('link',{name:'Project Intelligence'}).click();
+  assert.equal(new URL(operator.url()).pathname,'/espaces/knowledge');
+  await operator.locator('main a[href="/projects/a/knowledge"]').click();
   assert.equal(new URL(operator.url()).pathname,'/projects/a/knowledge');
   const knowledge=operator.locator('form.stack[action="/projects/a/knowledge"]');
   await knowledge.locator('[name=title]').fill('Règle du catalogue');
@@ -225,6 +229,9 @@ try {
   await knowledge.locator('[name=reference]').fill('Recette locale synthétique');
   await knowledge.locator('[name=scope]').selectOption('control');
   await submit(operator,knowledge.getByRole('button'));
+  assert.match(await operator.locator('main').innerText(),/Recette locale synthétique/);
+  assert.match(await operator.locator('main').innerText(),/Commit de la source\s+Non documenté/);
+  assert.match(await operator.locator('main').innerText(),/Confiance déclarée\s+Non renseignée/);
   const notePath=new URL(operator.url()).pathname;
   await operator.locator('form [name=confirm]').check();
   await submit(operator,operator.getByRole('button',{name:'Valider',exact:true}));
@@ -349,7 +356,7 @@ try {
   await submit(operator,operator.getByRole('button',{name:'Relier à cette révision'}));
   assert.equal(await operator.locator('main a[href*="snapshot='+snapshot+'"]').count(),1);
   await operator.goto(origin+'/activity?project=a&type=schema&days=1');
-  const journalLink=operator.getByRole('link',{name:'Catalogue de formation · test'});
+  const journalLink=operator.locator('.event-feed > li').filter({hasText:'Catalogue de formation · test'}).getByRole('link',{name:'Schéma enregistré'});
   assert((await journalLink.getAttribute('href')).includes(snapshot));
   await admin.goto(imported.href);
   await admin.getByText('Accès à cette source',{exact:true}).click();
@@ -421,6 +428,16 @@ try {
   await submit(admin,admin.locator('.follow-edit button'));
   await admin.goto(origin+'/workspace');
   assert.match(await admin.locator('.priority-projects').innerText(),/Vérifier les articles/);
+  const scopeBefore=await admin.locator('.scope-caption').innerText();
+  const metricsBefore=await admin.locator('.summary-strip strong').allTextContents();
+  const journalBefore=await admin.locator('a[href*="/activity"]').evaluateAll(links=>links.filter(a=>a.textContent.includes('Tout le journal')).map(a=>a.href));
+  await admin.locator('.follow-filters').getByRole('link',{name:/Prioritaires/}).click();
+  assert.equal(await admin.locator('#portefeuille tbody tr').count(),1);
+  assert.match(scopeBefore,/Tous les projets autorisés/);
+  assert.equal(await admin.locator('.scope-caption').innerText(),scopeBefore);
+  assert.deepEqual(await admin.locator('.summary-strip strong').allTextContents(),metricsBefore);
+  assert.equal(journalBefore.length,1);
+  assert.deepEqual(await admin.locator('a[href*="/activity"]').evaluateAll(links=>links.filter(a=>a.textContent.includes('Tout le journal')).map(a=>a.href)),journalBefore);
   await operator.goto(origin+'/workspace');
   assert.equal(await operator.locator('.priority-projects').count(),0);
   await admin.goto(origin+'/projects/a#reprise');
@@ -431,9 +448,10 @@ try {
   assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),0);
   await admin.locator('.follow-filters').getByRole('link',{name:/En veille/}).click();
   assert.equal(await admin.locator('#portefeuille th a[href="/projects/a"]').count(),1);
+  results.activityJournal=await verifyActivityBrowser(operator,origin,screen);
   results.personalPortfolio='Priorité personnelle, note, veille et recette Notion depuis le manifeste';
   results.isolation = {differentProject:404,viewerMutation:403};
-  results.viewports = ['1366×900','390×844'];
+  results.viewports = ['1440×900','390×844'];
   results.browser = browser.version();
   results.durationMs = Math.round(performance.now()-start);
   await writeFile(join(directory,'result.json'),JSON.stringify(results,null,2)+'\n',{flag:'wx'});

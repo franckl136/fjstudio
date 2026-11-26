@@ -89,7 +89,7 @@ export function knowledgePage(projects: Projects, project: string, items: Knowle
     <label>Origine<select name="origin"><option value="">Toutes</option>${options(origins,filters.get('origin')??'')}</select></label>
     <label>Fiches liées à l’identifiant<input name="relatedTo" maxlength="36" value="${e(filters.get('relatedTo')??'')}"></label>
     <button>Rechercher</button></form>
-    ${items.length ? `<ul class="mission-list">${items.map(r=>`<li><a href="${path}/${e(r.id)}"><strong>${e(r.title)}</strong><span>${e(kinds[r.kind])} · v${r.version}</span></a><span class="badge">${e(statuses[r.status])}</span></li>`).join('')}</ul>` : '<p>Aucune fiche pour cette recherche.</p>'}</section>
+    ${items.length ? `<ul class="mission-list">${items.map(r=>`<li><a href="${path}/${e(r.id)}"><strong>${e(r.title)}</strong><span>${e(kinds[r.kind])} · ${e(origins[r.origin])} · v${r.version} · ${date(r.at)}</span></a><span class="badge">${e(statuses[r.status])}</span></li>`).join('')}</ul>` : '<p>Aucune fiche pour cette recherche.</p>'}</section>
     ${canOperate ? `<div class="overview"><section class="panel"><h2>Nouvelle proposition</h2><form action="${path}" method="post" class="stack">
     ${contentFields()}<label>Type<select name="kind">${options(kinds)}</select></label>
     <label>Origine déclarée<select name="origin">${options(Object.fromEntries(Object.entries(origins).filter(([key])=>key!=='imported')))}</select></label>
@@ -99,6 +99,17 @@ export function knowledgePage(projects: Projects, project: string, items: Knowle
     <form action="${path}/import" method="post"><label>Source autorisée<select name="document">${documentOptions(project).map(d=>`<option value="${e(d.id)}">${e(d.entry)}</option>`).join('')}</select></label><button>Importer le document</button></form></section></div>` : ''}`,projects,project,true);
 }
 
+function provenanceDetails(r:KnowledgeRow) {
+  const record = r.origin==='imported'
+    ? /^(.+) · Git ([a-f0-9]{40}) · SHA-256 ([a-f0-9]{64})(?: · commit ([a-f0-9]{40}))?$/.exec(r.reference)
+    : null;
+  return `<dl class="facts"><dt>Origine</dt><dd>${e(origins[r.origin])} · ${e(r.author)} · ${date(r.created_at)}</dd>
+    <dt>Source</dt><dd class="digest">${e(record?.[1]||r.reference||'Source non renseignée')}${r.origin==='imported'?' · <a href="#v1">Relire le contenu importé en v1</a>':''}</dd>
+    <dt>Commit de la source</dt><dd class="digest">${e(record?.[4]??'Non documenté')}</dd>
+    ${record?`<dt>Empreinte du document importé</dt><dd class="digest">SHA-256 · ${e(record[3])}</dd>`:''}
+    <dt>Révision de la fiche</dt><dd><a href="#v${r.version}">v${r.version}</a> · ${e(statuses[r.status])} · ${date(r.at)} · ${e(r.actor)}</dd>
+    <dt>Confiance déclarée</dt><dd>${e(r.confidence?confidenceLevels[r.confidence]:'Non renseignée')}</dd></dl>`;
+}
 export function knowledgeDetail(projects: Projects, detail: Detail, canOperate = true) {
   const {item:r,history,uses,related}=detail;
   const base='/projects/'+e(r.project_id)+'/knowledge';
@@ -109,8 +120,7 @@ export function knowledgeDetail(projects: Projects, detail: Detail, canOperate =
   return layout(r.title,`<a class="back" href="${base}">← Connaissances du projet</a>
     <div class="heading"><div><h1>${e(r.title)}</h1><p>${e(kinds[r.kind])} · v${r.version}</p></div><span class="badge">${e(statuses[r.status])}</span></div>
     <section class="panel"><h2>Contenu et provenance</h2><p class="prose">${e(r.content)}</p>
-    <p>${e(origins[r.origin])} · Saisie par ${e(r.author)} le ${date(r.created_at)}</p>
-    ${r.reference ? `<p class="digest">${e(r.reference)}</p>`:''}<p>${e(scopes[r.scope])}</p>${r.confidence?`<p>Confiance déclarée · ${e(confidenceLevels[r.confidence])}</p>`:''}${r.validity?`<p>Validité · ${e(r.validity)}</p>`:''}
+    ${provenanceDetails(r)}<p>${e(scopes[r.scope])}</p>${r.validity?`<p>Validité · ${e(r.validity)}</p>`:''}
     ${r.related_id ? `<a href="${base}/${e(r.related_id)}">Fiche de référence</a>`:''}
     ${related.map(x=>`<p><a href="${base}/${e(x.id)}">${e(x.title)}</a> cite cette fiche.</p>`).join('')}</section>
     ${r.claim_key ? `<p class="panel">Affirmation · <strong>${e(r.claim_key)}</strong> · ${e(r.claim_value)}</p>` : ''}

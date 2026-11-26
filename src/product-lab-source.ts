@@ -42,7 +42,11 @@ export function labSources(project: ProjectId): LabSource[] {
 
 // A source has an operator-installed checkout, an authorized ref and a single approved source file.
 // The request can select a reachable commit. It cannot supply a pathname, URL or Git argument.
-export async function readLabSnapshot(source: LabSource, requested?: string): Promise<LabSnapshot> {
+export function readLabRevision(source:LabSource) { return inspectLabSource(source,undefined,true); }
+export function readLabSnapshot(source:LabSource,requested?:string) { return inspectLabSource(source,requested,false); }
+function inspectLabSource(source:LabSource,requested:string|undefined,revisionOnly:true):Promise<string>;
+function inspectLabSource(source:LabSource,requested:string|undefined,revisionOnly:false):Promise<LabSnapshot>;
+async function inspectLabSource(source:LabSource,requested:string|undefined,revisionOnly:boolean):Promise<string|LabSnapshot> {
   if (requested && !shaPattern.test(requested)) throw noSnapshot();
   try {
     const checkout = await realpath(source.directory);
@@ -84,6 +88,7 @@ export async function readLabSnapshot(source: LabSource, requested?: string): Pr
     if (!parts || parts[2] !== source.entry) throw noSnapshot();
     const length = Number((await call('cat-file', '-s', parts[1])).toString().trim());
     if (!Number.isInteger(length) || length < 1 || length > 131072) throw noSnapshot();
+    if (revisionOnly) return commit;
     const bytes = await call('cat-file', 'blob', parts[1]);
     if (bytes.length !== length || bytes.includes(0)) throw noSnapshot();
     new TextDecoder('utf-8', { fatal: true }).decode(bytes);

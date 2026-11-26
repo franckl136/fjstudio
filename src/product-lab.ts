@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { digestJson, DomainError, type Operator, type ProjectId } from './contracts.ts';
 import { assertId, assertProject, notFound, transaction } from './database.ts';
-import { labDigest, labSources, readLabSnapshot, type LabSnapshot, type LabInventory } from './product-lab-source.ts';
+import { labDigest, labSources, readLabRevision, readLabSnapshot, type LabSnapshot, type LabInventory } from './product-lab-source.ts';
 import { image, compilerImage, checkTypeScript, limits, renderLab, labFailureReason, type Rendered } from './product-lab-render.ts';
 
 export const labProfiles = {
@@ -47,14 +47,27 @@ function verifyReport(row: Run) {
   return row;
 }
 
-export async function listLab(pool: Pool, actor: Operator, project: ProjectId) {
+export async function listLab(pool: Pool, actor: Operator, project: ProjectId, inspectRevisions = false) {
   assertProject(actor, project);
   const [runs,rules,projects] = await Promise.all([
     pool.query<Run>(`SELECT ${runFields} FROM product_lab_runs WHERE project_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100`, [project]),
     pool.query<Rule>('SELECT * FROM product_lab_rules WHERE project_id=$1 ORDER BY source_key,profile', [project]),
     pool.query<{id: ProjectId; name: string}>('SELECT id,name FROM projects WHERE id=ANY($1::text[]) ORDER BY name', [actor.projectIds]),
   ]);
-  return { runs: runs.rows, rules: rules.rows, projects: projects.rows, sources: labSources(project).map(s => ({key:s.key, entry:s.entry, ref:s.ref})), profiles: labProfiles };
+  const configured = labSources(project);
+  async function describe(source:typeof configured[number]) {
+    let commit: string|null = null;
+    if (inspectRevisions) {
+      try { commit = await readLabRevision(source); }
+      catch (error) { if (!(error instanceof DomainError)) throw error; }
+    }
+    return {key:source.key, entry:source.entry, ref:source.ref, commit};
+  }
+  const sources = [];
+  for (let i=0; i<configured.length; i+=4) {
+    sources.push(...await Promise.all(configured.slice(i,i+4).map(describe)));
+  }
+  return { runs: runs.rows, rules: rules.rows, projects: projects.rows, sources, profiles: labProfiles };
 }
 
 export async function detailLab(pool: Pool, actor: Operator, project: ProjectId, id: string) {

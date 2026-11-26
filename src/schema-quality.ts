@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
 import type { Operator } from './contracts.ts';
 import { sources,snapshot } from './explorer-store.ts';
+import { provenance } from './explorer-views.ts';
+import { projectStack } from './project-stack.ts';
 import { schemaSignals,type SchemaModel } from './explorer-model.ts';
 import { date,e,layout } from './views.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
@@ -29,14 +31,19 @@ export async function schemaQuality(pool:Pool,actor:Operator,project:string,para
   const selected=params.get('source');
   const shot=selected?await snapshot(pool,actor,project,selected,params.get('snapshot')??undefined):null;
   const report=shot?auditSchema(shot.structure):null;
-  return {catalog,shot:shot?{id:shot.id,source_id:shot.source_id,captured_at:shot.captured_at,digest:shot.digest,reference:shot.reference}:null,report};
+  return {catalog,shot:shot?{id:shot.id,source_id:shot.source_id,captured_at:shot.captured_at,digest:shot.digest,reference:shot.reference,demonstration:shot.structure.demonstration===true}:null,report};
 }
 export async function schemaQualityPage(pool:Pool,actor:Operator,project:string,data:Awaited<ReturnType<typeof schemaQuality>>) {
   const base='/projects/'+e(project);
   const {catalog,shot,report}=data;
+  const stack = catalog.length ? null : await projectStack(pool,actor,project);
+  const detectors = [...(stack?.tools??[]),...(stack?.storage??[])].filter(t=>['Supabase','Notion','PostgreSQL','Prisma','SQLite'].includes(t));
+  const empty = detectors.length
+    ? 'Intégrations déclarées dans le code · '+e([...new Set(detectors)].join(', '))+'. Aucun schéma disponible pour ce projet. Ouvrez Database Explorer pour examiner les sources.'
+    : 'Aucun schéma enregistré pour ce projet. Database Explorer indique les sources et les possibilités d’import.';
   return layout('Contrôles du schéma',`<header class="heading"><h1>Contrôles du schéma</h1><a href="${base}/quality">Quality Lab</a></header>
-    <section class="panel"><h2>Sources du projet</h2>${catalog.length?`<ul>${catalog.map(s=>`<li><a href="${base}/quality/schema?source=${e(s.id)}">${e(s.label)}</a> · ${e(s.environment)} · ${e(s.origin)}</li>`).join('')}</ul>`:'<p>Aucune source autorisée pour ce projet.</p>'}<a href="${base}/database">Ouvrir Database Explorer</a></section>
-    ${report&&shot?`<section class="panel"><h2>Audit statique de la version</h2><p>Capturée le ${date(shot.captured_at)} · ${e(shot.reference)} · <code class="digest">${e(shot.digest)}</code></p>
+    <section class="panel"><h2>Sources du projet</h2>${catalog.length?`<ul>${catalog.map(s=>`<li><a href="${base}/quality/schema?source=${e(s.id)}">${e(s.label)}</a> · ${e(s.environment)} · ${e(provenance(s))}${s.synthetic_project?' · Projet synthétique':''}</li>`).join('')}</ul>`:'<p>'+empty+'</p>'}<a href="${base}/database">Ouvrir Database Explorer</a></section>
+    ${report&&shot?`<section class="panel"><h2>Audit statique de la version</h2><p>${e(catalog.find(s=>s.id===shot.source_id)?.label??'Source')} · ${shot.demonstration?'Démonstration synthétique · ':''}Capturée le ${date(shot.captured_at)} · ${e(shot.reference)} · <code class="digest">${e(shot.digest)}</code></p>
     <p>${report.signals.tables} tables · ${report.signals.foreignKeys} relations · ${report.signals.indexes} index · ${report.signals.policies} policies · ${report.signals.triggers} triggers.</p>
     <p>Ces constats portent sur les déclarations disponibles. L’efficacité des contrôles d’accès demande une recette par rôle.</p>
     ${report.warnings.map(w=>`<p>${e(w)}</p>`).join('')}

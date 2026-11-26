@@ -154,6 +154,20 @@ test('Quality Lab · formulaires opérateur et lecture seule',async()=>{
   const url=new URL('http://127.0.0.1/projects/a/quality');
   await productLabRoute(pool,req,res,url,actor,false,io);
   assert.match(markup,/name="selection"/);assert.match(markup,/atelier-types:typescript/);assert.doesNotMatch(markup,/atelier-types:visual/);
+  assert(markup.includes('value="atelier:structure:'+second+'"'));
+  assert(markup.includes('data-nature="Démonstration · exemple synthétique du Studio"'));
+  assert(markup.includes('data-nature="Audit statique du fichier du projet"'));
+  const displayed=second,third=revision('<!doctype html>',second);
+  git(['update-ref','refs/heads/atelier',third]);
+  try {
+    let location='';
+    const launch={...io,body:async()=>({selection:'atelier:structure:'+displayed,commandKey:randomUUID(),commit:''}),redirect:(_r:ServerResponse,dest:string)=>{location=dest;}};
+    await productLabRoute(pool,{method:'POST'} as IncomingMessage,res,url,actor,false,launch);
+    const pinned=await detailLab(pool,actor,'a',location.split('/').at(-1)!);
+    assert.equal(pinned.commit_sha,displayed);
+    await productLabRoute(pool,req,res,new URL(location,url),actor,false,io);
+    assert(markup.includes('id="revision"'));assert(markup.includes('Audit statique du fichier du projet'));
+  } finally { git(['update-ref','refs/heads/atelier',second]); }
   await productLabRoute(pool,req,res,url,viewer,false,io);
   assert.doesNotMatch(markup,/name="selection"|Configurer une règle|Nouvelle qualification/);
   await assert.rejects(queueLab(pool,viewer,'a','atelier','structure',randomUUID()),{status:403});
