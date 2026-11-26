@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { PoolClient } from 'pg';
 import { createPool } from '../src/config.ts';
+import { captureInternal } from '../src/explorer-store.ts';
 import { migrate, migrationNames } from '../src/core.ts';
 import { localPath } from './archive.ts';
 import { backupDatabase, ensureArchiveDirectory } from './backup.ts';
@@ -81,6 +82,9 @@ export async function productMaintenance(connection: URL, mode: 'once' | 'migrat
         archives.push({ action: 'created', file: name, sha256: before.sha256, bytes: before.bytes });
       }
       await migrate(pool);
+      // A failed catalogue snapshot can be retried independently of the migration.
+      try { await captureInternal(pool); }
+      catch { console.error('Catalogue Studio indisponible. Relancez la capture de maintenance.'); }
       if (before && !hasJournal) await recordBackupCheck(client, 'archive', 'verified', before);
       return { state: 'migrated', archives };
     }
