@@ -22,6 +22,8 @@ export type ControlStatus =
   | 'failed'
   | 'cancelled';
 export type ControlBrief = {
+  purpose?:string;
+  planMode?:'parallel'|'sequential';
   objective: string;
   scope: string;
   constraints: string;
@@ -31,6 +33,8 @@ export type ControlBrief = {
   durationMinutes: number;
 };
 export type ControlMission = {
+  purpose:string;
+  plan_mode:'parallel'|'sequential';
   id: string;
   project_id: ProjectId;
   objective: string;
@@ -53,6 +57,11 @@ export type ControlMission = {
   parent_id: string | null;
 };
 const terminal = ['completed', 'failed', 'cancelled', 'blocked'];
+export const missionPurposes={analysis:'Analyse',development:'Développement',audit:'Audit',documentation:'Documentation',
+  research:'Recherche',test:'Test',maintenance:'Maintenance',delivery:'Préparation de livraison'};
+export function missionPlan(mode:'parallel'|'sequential') {
+  return documentPlan.map(task=>mode==='sequential'&&task.key==='coverage'?{...task,dependencies:['structure' as const]}:task);
+}
 export function invalid(message: string): never {
   throw new DomainError(400, 'control_input', message);
 }
@@ -82,7 +91,11 @@ export function readBrief(input: JsonObject): ControlBrief {
     invalid('Choisissez une durée de 1 à 60 minutes.');
   if (input.risk !== 'normal' && input.risk !== 'review') invalid('Risque inconnu.');
   field(input.document, 10000);
+  if(input.purpose!==undefined && (typeof input.purpose!=='string'||!Object.hasOwn(missionPurposes,input.purpose))) invalid('Finalité de mission inconnue.');
+  if(input.planMode!==undefined && input.planMode!=='parallel' && input.planMode!=='sequential') invalid('Ordonnancement inconnu.');
   return {
+    ...(typeof input.purpose==='string'?{purpose:input.purpose}:{}),
+    ...(input.planMode?{planMode:input.planMode}:{}),
     objective: field(input.objective, 240),
     scope: field(input.scope, 1200),
     constraints: field(input.constraints ?? '', 1200, true),
@@ -210,7 +223,7 @@ async function insertMission(
   const id = randomUUID();
   await c.query(
     `INSERT INTO control_missions(id,project_id,objective,scope,constraints_text,document,criteria,risk,duration_minutes,status,
-    source_sha256,contract_version,parent_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13)`,
+    source_sha256,contract_version,parent_id,created_by,purpose,plan_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',$10,$11,$12,$13,$14,$15)`,
     [
       id,
       project,
@@ -225,6 +238,7 @@ async function insertMission(
       controlVersion,
       parent,
       actor.id,
+      b.purpose??'documentation',b.planMode??'parallel',
     ],
   );
   await recordControl(c, project, id, actor.id, 'mission.created', { parentId: parent });
@@ -269,6 +283,7 @@ export function commandMission(
           criteria: m.criteria,
           risk: m.risk,
           durationMinutes: m.duration_minutes,
+          purpose:m.purpose,planMode:m.plan_mode,
         },
         id,
       );
@@ -277,7 +292,7 @@ export function commandMission(
       const b = readBrief(fields);
       await c.query(
         `UPDATE control_missions SET objective=$3,scope=$4,constraints_text=$5,document=$6,criteria=$7,risk=$8,
-        duration_minutes=$9,source_sha256=$10,context='[]',status='draft',updated_at=clock_timestamp(),revision=revision+1 WHERE project_id=$1 AND id=$2`,
+        duration_minutes=$9,source_sha256=$10,purpose=$11,plan_mode=$12,context='[]',status='draft',updated_at=clock_timestamp(),revision=revision+1 WHERE project_id=$1 AND id=$2`,
         [
           project,
           id,
@@ -289,6 +304,7 @@ export function commandMission(
           b.risk,
           b.durationMinutes,
           documentHash(b.document),
+          b.purpose??m.purpose,b.planMode??m.plan_mode,
         ],
       );
       await recordControl(c, project, id, actor.id, 'brief.revised', {
@@ -316,6 +332,7 @@ export function commandMission(
         sourceSha256: m.source_sha256,
         contextCount: context.length,
         repositoryObservation: observation,
+        ordering:m.plan_mode,purpose:m.purpose,
       });
       if (m.risk === 'review') {
         await changeStatus(c, m, 'needs_approval', actor.id);
@@ -349,7 +366,7 @@ export function commandMission(
     } else {
       conflict('Transition indisponible dans cet état.');
     }
-    for (const task of documentPlan) {
+    for (const task of missionPlan(m.plan_mode)) {
       await c.query(
         `INSERT INTO control_tasks(project_id,mission_id,task_key,role,dependencies,state) VALUES($1,$2,$3,$4,$5,$6)`,
         [project, id, task.key, task.role, task.dependencies, task.dependencies.length ? 'waiting' : 'ready'],
@@ -398,7 +415,7 @@ export async function controlDetail(pool: Pool, actor: Operator, project: Projec
           [project, id],
         )
       ).rows;
-      return { mission, tasks, attempts, events, plan: documentPlan, limits: controlLimits };
+      return { mission, tasks, attempts, events, plan: missionPlan(mission.plan_mode), limits: controlLimits };
     },
     true,
   );

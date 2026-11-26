@@ -18,6 +18,7 @@ import {
   createControlMission,
   invalid,
   listControlMissions,
+  missionPurposes,
   type ControlMission,
 } from './control-room.ts';
 import { claimControl, completeControl, heartbeatControl } from './control-room-queue.ts';
@@ -29,7 +30,7 @@ type Tools = {
   html(res: ServerResponse, status: number, page: string): void;
   redirect(res: ServerResponse, path: string): void;
 };
-const fieldNames = ['objective', 'scope', 'constraints', 'document', 'criteria', 'risk', 'durationMinutes'];
+const fieldNames = ['objective', 'scope', 'constraints', 'document', 'criteria', 'risk', 'durationMinutes','purpose','planMode'];
 const labels: Record<string, string> = {
   draft: 'Brouillon',
   needs_approval: 'Validation attendue',
@@ -71,12 +72,19 @@ function checkFields(input: JsonObject, known: string[]) {
 function hidden(key: string, value: unknown) {
   return `<input type="hidden" name="${e(key)}" value="${e(value)}">`;
 }
-function briefForm(path: string, m?: ControlMission) {
+const sourceLabels:Record<keyof typeof missionPurposes,string>={analysis:'Note et faits à analyser',development:'Spécification et critères de développement',
+  audit:'Rapport et constats à contrôler',documentation:'Document à examiner',research:'Notes de recherche et sources',
+  test:'Compte rendu de tests',maintenance:'Procédure et relevé de maintenance',delivery:'Dossier de livraison'};
+function briefForm(path: string, m?: ControlMission,requested?:string|null) {
+  const purpose=(m?.purpose??requested??'documentation') as keyof typeof missionPurposes;
+  if(!Object.hasOwn(missionPurposes,purpose)) invalid('Finalité inconnue.');
   return `<form method="post" action="${e(path)}">${hidden('commandKey', randomUUID())}${m ? hidden('revision', m.revision) : ''}
+    ${hidden('purpose',purpose)}<p><strong>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
     <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? '')}"></label>
     <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? '')}</textarea></label>
     <label>Contraintes<textarea maxlength="1200" name="constraints">${e(m?.constraints_text ?? '')}</textarea></label>
-    <label>Document à examiner<textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
+    <label>${e(sourceLabels[purpose])}<textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
+    <label>Ordre du travail<select name="planMode"><option value="parallel">Index et critères en parallèle</option><option value="sequential"${m?.plan_mode==='sequential'?' selected':''}>Indexer, puis vérifier les critères</option></select></label>
     <label>Expressions attendues, une par ligne<textarea required maxlength="1932" name="criteria">${e(m?.criteria.join('\n') ?? '')}</textarea></label>
     <label>Décision avant exécution<select name="risk"><option value="normal">Plan standard</option>
       <option value="review"${m?.risk === 'review' ? ' selected' : ''}>Approbation opérateur requise</option></select></label>
@@ -115,11 +123,21 @@ function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetai
     path = root + '/' + m.id;
   const coverage=detail.tasks.find(t=>t.task_key==='coverage')?.result?.matches as {criterion:string;covered:boolean;lines:number[]}[]|undefined;
   const verdict=detail.tasks.find(t=>t.task_key==='synthesis')?.result?.verdict;
+  const graph=detail.plan.map(p=>{
+    const task=detail.tasks.find(t=>t.task_key===p.key);
+    const deps:string[]=task?.dependencies??p.dependencies;
+    const run=detail.attempts.filter(a=>a.task_key===p.key).at(-1);
+    const duration=run?Math.max(0,Math.round(((run.finished_at??new Date()).getTime()-run.started_at.getTime())/1000)):null;
+    return `<li id="task-${p.key}"><strong>${e(p.label)}</strong><span>${task?e(labels[task.state]??task.state):'Prévue'} · ${e(run?.runner_id??(p.role==='preparer'?'Préparateur':'Vérificateur'))}</span>
+      <small>${deps.length?'Après '+deps.map(k=>`<a href="#task-${e(k)}">${e(documentPlan.find(d=>d.key===k)?.label??k)}</a>`).join(' et '):'Peut démarrer en premier'}
+      ${duration!==null?' · '+duration+' s':''}${task?.failure_count?' · '+Number(task.failure_count)+' tentative(s) échouée(s)':''}</small>
+      ${task?.sha256?`<a href="#preuve-${p.key}">Lire le checkpoint</a>`:''}</li>`;
+  }).join('');
   const tasks = detail.tasks
     .map(
       (
         t,
-      ) => `<li><strong>${e(documentPlan.find((p) => p.key === t.task_key)?.label)}</strong> · ${e(labels[t.state] ?? t.state)}
+      ) => `<li id="preuve-${e(t.task_key)}"><strong>${e(documentPlan.find((p) => p.key === t.task_key)?.label)}</strong> · ${e(labels[t.state] ?? t.state)}
     ${t.sha256 ? `<details><summary>Checkpoint et SHA-256</summary><code>${e(t.sha256)}</code><pre>${e(JSON.stringify(t.result, null, 2))}</pre></details>` : ''}</li>`,
     )
     .join('');
@@ -156,7 +174,8 @@ function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetai
     ${ctx ? `<h3>Révisions validées retenues</h3><ul>${ctx}</ul>` : ''}
     <div class="actions"><a href="${path}/report">Télécharger le rapport JSON</a>
     <a href="${path}/handoff">Échange manuel et propositions</a></div></section>
-    <section class="panel"><h2>Plan et contrôles</h2>${planTable()}${canOperate ? '<div class="actions">' + controls(path, m) + '</div>' : ''}</section>
+    <section class="panel" id="plan"><h2>Graphe d’exécution</h2><p>${e(missionPurposes[m.purpose as keyof typeof missionPurposes])} · ${m.plan_mode==='sequential'?'Étapes successives':'Deux lectures en parallèle, puis synthèse'} · ${detail.tasks.length?'plan en base':'plan prévisionnel'}</p>
+      <ol class="execution-graph">${graph}</ol>${canOperate ? '<div class="actions">' + controls(path, m) + '</div>' : ''}</section>
     ${canOperate && ['draft', 'needs_approval'].includes(m.status) ? `<details class="panel"><summary>Modifier le périmètre</summary>${briefForm(path + '/edit', m)}</details>` : ''}
     ${tasks ? `<section class="panel"><h2>Travaux et livrables</h2><ul>${tasks}</ul></section>` : ''}
     ${attempts ? `<section class="panel"><h2>Tentatives</h2><ul class="history">${attempts}</ul></section>` : ''}
@@ -213,7 +232,7 @@ export async function controlRoomRoute(
           .join('');
         const panel = `<div class="heading"><h1>Agent Control Room</h1></div>
           <section class="panel"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
-          ${actor.accountRole === 'viewer' ? '' : `<section class="panel"><h2>Créer une mission</h2><p>Les agents indexent la structure du document soumis et localisent les expressions demandées. Un vérificateur recalcule les preuves.</p>${briefForm(root)}</section>`}
+          ${actor.accountRole === 'viewer' ? '' : `<section class="panel" id="brief"><h2>Créer une mission</h2><form class="filters" method="get" action="${root}#brief"><label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([k,v])=>`<option value="${k}"${k===(url.searchParams.get('purpose')??'documentation')?' selected':''}>${e(v)}</option>`).join('')}</select></label><button>Adapter le formulaire</button></form>${briefForm(root,undefined,url.searchParams.get('purpose'))}</section>`}
           <details class="panel"><summary>Adaptateurs et limites</summary>${planTable()}<p>Deux travaux peuvent progresser en parallèle dans le projet. Chaque lecteur travaille sur le texte du contrat, en mémoire. Budget des moteurs externes&nbsp;: 0 €.</p></details>`;
         io.html(res, 200, layout('Agent Control Room', panel, await projects(pool, actor), project, true));
       }
