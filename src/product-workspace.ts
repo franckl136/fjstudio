@@ -88,6 +88,14 @@ async function desks(client: PoolClient, ids: readonly ProjectId[], configured: 
   return [...registry.values()].sort((a,b) => a.projectId.localeCompare(b.projectId) || a.id.localeCompare(b.id) || a.role.localeCompare(b.role));
 }
 
+export async function readLoft(pool:Pool,actor:Operator,configured:readonly DeskIdentity[],filter?:ProjectId) {
+  if(filter) assertProject(actor,filter);
+  return transaction(pool,async client=>({
+    agents:await desks(client,filter?[filter]:actor.projectIds,configured),
+    projects:(await client.query<{id:string;name:string}>('SELECT id,name FROM projects WHERE id=ANY($1::text[])',[filter?[filter]:actor.projectIds])).rows,
+  }),true);
+}
+
 export async function readWorkspace(pool: Pool, actor: Operator, configured: readonly DeskIdentity[], filter?: ProjectId) {
   if (filter) assertProject(actor, filter);
   const ids = filter ? [filter] : actor.projectIds;

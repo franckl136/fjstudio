@@ -75,16 +75,20 @@ function hidden(key: string, value: unknown) {
 const sourceLabels:Record<keyof typeof missionPurposes,string>={analysis:'Note et faits à analyser',development:'Spécification et critères de développement',
   audit:'Rapport et constats à contrôler',documentation:'Document à examiner',research:'Notes de recherche et sources',
   test:'Compte rendu de tests',maintenance:'Procédure et relevé de maintenance',delivery:'Dossier de livraison'};
+function specificFields(purpose:keyof typeof missionPurposes, details:Record<string,string>={}) {
+  return Object.entries(purposeFields[purpose]).map(([key,label])=>
+    `<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(details[key]??'')}"></label>`).join('');
+}
 function briefForm(path: string, m?: ControlMission,requested?:string|null) {
   const purpose=(m?.purpose??requested??'documentation') as keyof typeof missionPurposes;
   if(!Object.hasOwn(missionPurposes,purpose)) invalid('Finalité inconnue.');
   return `<form method="post" action="${e(path)}">${hidden('commandKey', randomUUID())}${m ? hidden('revision', m.revision) : ''}
-    ${hidden('purpose',purpose)}<p><strong>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
+    ${hidden('purpose',purpose)}<p><strong data-purpose-title>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
     <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? '')}"></label>
     <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? '')}</textarea></label>
     <label>Contraintes<textarea maxlength="1200" name="constraints">${e(m?.constraints_text ?? '')}</textarea></label>
-    ${Object.entries(purposeFields[purpose]).map(([key,label])=>`<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(m?.brief_details[key]??'')}"></label>`).join('')}
-    <label>${e(sourceLabels[purpose])}<textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
+    <div data-brief-fields>${specificFields(purpose,m?.brief_details)}</div>
+    <label><span data-source-label>${e(sourceLabels[purpose])}</span><textarea required rows="7" maxlength="10000" name="document">${e(m?.document ?? '')}</textarea></label>
     <label>Ordre du travail<select name="planMode"><option value="parallel">Index et critères en parallèle</option><option value="sequential"${m?.plan_mode==='sequential'?' selected':''}>Indexer, puis vérifier les critères</option></select></label>
     <label>Expressions attendues, une par ligne<textarea required maxlength="1932" name="criteria">${e(m?.criteria.join('\n') ?? '')}</textarea></label>
     <label>Décision avant exécution<select name="risk"><option value="normal">Plan standard</option>
@@ -232,9 +236,17 @@ export async function controlRoomRoute(
           <span class="badge">${e(labels[m.status])}</span></li>`,
           )
           .join('');
-        const panel = `<div class="heading"><h1>Agent Control Room</h1></div>
-          <section class="panel"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
-          ${actor.accountRole === 'viewer' ? '' : `<section class="panel" id="brief"><h2>Créer une mission</h2><form class="filters" method="get" action="${root}#brief"><label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([k,v])=>`<option value="${k}"${k===(url.searchParams.get('purpose')??'documentation')?' selected':''}>${e(v)}</option>`).join('')}</select></label><button>Adapter le formulaire</button></form>${briefForm(root,undefined,url.searchParams.get('purpose'))}</section>`}
+        const selected=url.searchParams.get('purpose')??'documentation';
+        const composer=actor.accountRole==='viewer'?'':`<section class="panel" id="brief"><h2>Créer une mission</h2>
+          <form class="filters brief-selector" method="get" action="${root}#brief"><label>Finalité du dossier<select name="purpose">${Object.entries(missionPurposes).map(([key,title])=>
+            `<option value="${key}"${key===selected?' selected':''}>${e(title)}</option>`).join('')}</select></label><button>Afficher les champs</button></form>
+          ${briefForm(root,undefined,selected)}
+          ${(Object.keys(missionPurposes) as (keyof typeof missionPurposes)[]).map(key=>
+            `<template data-purpose="${key}" data-source="${e(sourceLabels[key])}">${specificFields(key)}</template>`).join('')}
+          <script src="/control-assets/brief.js" defer></script></section>`;
+        const panel = `<header class="product-heading"><h1>Agent Control Room</h1>${composer?'<nav class="actions" aria-label="Accès aux missions"><a href="#brief">Créer une mission</a><a href="#missions">Missions du projet</a></nav>':''}</header>
+          ${composer}
+          <section class="panel" id="missions"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
           <details class="panel"><summary>Adaptateurs et limites</summary>${planTable()}<p>Deux travaux peuvent progresser en parallèle dans le projet. Chaque lecteur travaille sur le texte du contrat, en mémoire. Budget des moteurs externes&nbsp;: 0 €.</p></details>`;
         io.html(res, 200, layout('Agent Control Room', panel, await projects(pool, actor), project, true));
       }

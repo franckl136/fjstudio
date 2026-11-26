@@ -220,11 +220,33 @@ try {
   await viewer.goto(origin+notePath);
   assert.equal(await viewer.locator('main form[method=post]').count(),0);
   await operator.locator('nav.sidebar').getByRole('link',{name:'Agent Control Room'}).click();
+  const plain=await browser.newContext({javaScriptEnabled:false,storageState:await operator.context().storageState()});
+  try {
+    const page=await plain.newPage();
+    await page.goto(origin+'/projects/a/control?purpose=research');
+    await page.getByLabel('Finalité du dossier').selectOption('maintenance');
+    await page.getByRole('button',{name:'Afficher les champs'}).click();
+    assert.equal(await page.locator('form[method=post] [name=purpose]').inputValue(),'maintenance');
+    assert.equal(await page.getByLabel('Procédure de retour').isVisible(),true);
+  } finally {await plain.close();}
   const form = operator.locator('form[action="/projects/a/control"]');
   for (const [field,value] of Object.entries({
     objective:'Qualifier le dossier catalogue',scope:'Catalogue synthétique de l’atelier',
     document:'# Catalogue\nUne revue est prévue pour le catalogue.',criteria:'catalogue',constraints:'Synthétique, local.',
   })) await form.locator('[name='+field+']').fill(value);
+  const purpose=operator.getByLabel('Finalité du dossier');
+  await purpose.selectOption('research');
+  await form.getByLabel('Question de recherche').fill('Comment le catalogue est-il indexé ?');
+  await purpose.selectOption('audit');
+  assert.equal(await form.locator('[name=question]').count(),0);
+  await form.getByLabel('Référentiel de contrôle').fill('Contrôle local');
+  await purpose.selectOption('research');
+  assert.equal(await form.getByLabel('Question de recherche').inputValue(),'Comment le catalogue est-il indexé ?');
+  assert.equal(await form.locator('[name=standard]').count(),0);
+  assert.equal(await form.locator('[name=objective]').inputValue(),'Qualifier le dossier catalogue');
+  assert.equal(await form.getByLabel('Notes de recherche et sources').isVisible(),true);
+  assert.equal(await operator.locator('.brief-selector button').isVisible(),false);
+  assert.equal(await form.locator('[name=purpose]').inputValue(),'research');
   await form.locator('[name=risk]').selectOption('review');
   await submit(operator,form.getByRole('button'));
   const missionPath = new URL(operator.url()).pathname;
@@ -264,7 +286,7 @@ try {
   }));
   assert(await runControlOnce(origin,verify.token));
   await operator.waitForFunction(()=>document.querySelectorAll('.office-station.occupied').length===0,{},{timeout:15000});
-  await operator.waitForFunction(()=>document.querySelectorAll('.loft-people[data-crowd=coffee] > .pixel-person').length===2,{},{timeout:15000});
+  await operator.waitForFunction(()=>document.querySelectorAll('.loft-people > .pixel-person[data-area=coffee]').length===2,{},{timeout:15000});
   assert.equal(await operator.locator('#office-live').innerText(),'En direct');
   await operator.goto(origin+missionPath);
   assert.equal(await operator.locator('.heading .badge').innerText(),'Terminée');

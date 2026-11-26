@@ -11,7 +11,7 @@ function person(id:string,state:Desk['state'],task?:string):Desk {
     state:'running',live:true,engine:'control',objective:'Recette du loft',
   }]:[]};
 }
-test('Loft · quatre pièces issues des baux, aucun personnage hors ligne, pagination par pièce',()=>{
+test('Loft · quatre pièces issues des baux, aucun personnage hors ligne, un seul plateau conserve tous les agents connectés',()=>{
   const data={projects:[{id:'demo',name:'Démo & atelier'}],agents:[
     person('prepare','working','structure'),person('review','verifying','coverage'),person('finish','verifying','synthesis'),
     person('disconnected','offline'),person('never-seen','unseen'),...Array.from({length:5},(_,i)=>person('idle-'+i,'available')),
@@ -21,11 +21,12 @@ test('Loft · quatre pièces issues des baux, aucun personnage hors ligne, pagin
   for(const [id,role,room] of [['prepare','preparer','desks'],['review','verifier','control'],['finish','verifier','meeting'],['idle-0','preparer','coffee']]) {
     assert.match(first,new RegExp('data-member="demo/'+id+'/'+role+'"\\s+data-area="'+room+'"'));
   }
-  assert.doesNotMatch(first,/demo\/(disconnected|never-seen|idle-4)\//);
-  assert.match(first,/Groupe 1 \/ 2/);
-  const second=render('project=demo&salle=cafe&groupe=2');
-  assert.match(second,/data-focus="coffee"/);assert.match(second,/data-member="demo\/idle-4\/preparer"/);
-  assert.doesNotMatch(second,/demo\/idle-0\/preparer/);
-  assert.match(second,/liste=1#postes-locaux/);
-  assert.match(render('rendu=classique'),/Voir le loft pixel/);
+  assert.doesNotMatch(first,/demo\/(disconnected|never-seen)\//);
+  assert.match(first,/data-member="demo\/idle-4\/preparer"/);
+  assert.equal((first.match(/data-floor-art/g)??[]).length,1);
+  const focus=render('project=demo&salle=cafe&groupe=2');
+  assert.match(focus,/data-focus="coffee"/);
+  assert.match(focus,/liste=1#postes-locaux/);
+  assert.doesNotMatch(focus,/groupe=|Atelier classique/);
+  assert.match(render('rendu=classique'),/data-floor-art/);
 });

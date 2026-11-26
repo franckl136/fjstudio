@@ -50,6 +50,10 @@ function catalogPage(book:Book,actor:Operator,q:string,project?:string|null) {
     ${search.docs.length?'<ul>'+search.docs.map(d=>'<li><a href="/academy/docs/'+e(d.id)+'">'+e(d.title)+'</a><p>'+e(d.excerpt)+'</p></li>').join('')+'</ul>':''}
     ${search.lessons.length||search.docs.length?'':'<p>Aucun guide trouvé. Essayez « bail », « qualification » ou « sauvegarde ».</p>'}</div>`:'';
   return `<header class="product-heading"><div><h1>Studio Academy</h1><p>Apprenez à piloter le Studio dans votre carnet de formation personnel.</p></div></header>
+    <section id="aide" class="panel"><h2>Rechercher dans les guides</h2>
+      <form class="search-toolbar" role="search" method="get" action="/academy#aide">${project?'<input type="hidden" name="project" value="'+e(project)+'">':''}<label for="academy-q">Question ou mots-clés</label><input id="academy-q" type="search" name="q" maxlength="120" value="${e(q)}">
+      <button>Rechercher</button></form>${searchView}
+      <details><summary>Documentation consultable</summary><ul>${helpDocs().map(d=>'<li><a href="/academy/docs/'+d.id+'">'+e(d.title)+'</a></li>').join('')}</ul></details></section>
     <section class="panel academy-progress"><div><h2>Votre parcours</h2>
       <p><strong>${finished.length} sur ${lessons.length}</strong> exercices validés · ${book.progress.filter(p=>!p.completed_at).length} en cours</p>
       <progress max="${lessons.length}" value="${finished.length}" aria-label="Exercices validés"></progress></div>
@@ -58,11 +62,7 @@ function catalogPage(book:Book,actor:Operator,q:string,project?:string|null) {
     ${practicePanel(book,project)}
     <div class="academy-grid">${groups.map(group=>`<section class="panel"><h2>${e(group)}</h2><ol class="academy-index">${lessons.filter(l=>l.group===group).map(l=>
       `<li><a href="${pathTo(l.id,project)}">${e(l.title)}</a><small>${status(book,l.id)}</small></li>`).join('')}</ol></section>`).join('')}</div>
-    ${finished.length?`<details class="panel"><summary>Compétences exercées et validées</summary><ul>${finished.map(l=>`<li><a href="${pathTo(l.id,project)}#preuve">${e(l.outcome)}</a></li>`).join('')}</ul></details>`:''}
-    <section id="aide" class="panel"><h2>Rechercher dans les guides</h2>
-      <form method="get" action="/academy#aide">${project?'<input type="hidden" name="project" value="'+e(project)+'">':''}<label for="academy-q">Question ou mots-clés</label><input id="academy-q" type="search" name="q" maxlength="120" value="${e(q)}">
-      <button>Rechercher</button></form>${searchView}
-      <details><summary>Documentation consultable</summary><ul>${helpDocs().map(d=>'<li><a href="/academy/docs/'+d.id+'">'+e(d.title)+'</a></li>').join('')}</ul></details></section>`;
+    ${finished.length?`<details class="panel"><summary>Compétences exercées et validées</summary><ul>${finished.map(l=>`<li><a href="${pathTo(l.id,project)}#preuve">${e(l.outcome)}</a></li>`).join('')}</ul></details>`:''}`;
 }
 function moduleLink(lesson:Lesson,project:string|undefined,actor:Operator) {
   const prefix=project?'/projects/'+encodeURIComponent(project):'';

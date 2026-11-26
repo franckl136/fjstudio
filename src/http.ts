@@ -30,11 +30,12 @@ import { agentPage, commandPage, knowledgePage, knowledgeDetail } from './studio
 import { missionQuality } from './quality.ts';
 
 const css = readFileSync(new URL('./style.css', import.meta.url));
-const officeAssets = new Map(['work-room.png','review-room.png','maker.png','reviewer.png','atelier-paris.webp','equipe-atelier.webp','live.js'].map(name =>
+const officeAssets = new Map(['work-room.png','review-room.png','maker.png','reviewer.png','live.js'].map(name =>
   ['/office-assets/'+name, { type:name.endsWith('.webp')?'image/webp':name.endsWith('.png')?'image/png':'text/javascript; charset=utf-8',
     bytes:readFileSync(new URL('./office/'+name,import.meta.url)) }]));
 const cookieName = 'a1_operator';
 const moduleFiles:Record<string,[string,string]>={
+  '/control-assets/brief.js':['control-brief.js','text/javascript; charset=utf-8'],
   '/database-assets/erd.js':['explorer/erd.js','text/javascript; charset=utf-8'],
   '/database-assets/explorer.css':['explorer/explorer.css','text/css; charset=utf-8'],
   '/office-assets/pixel-office.js':['office/pixel-office.js','text/javascript; charset=utf-8'],
@@ -295,7 +296,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         const [file,mime]=moduleFiles[path];
         send(res,200,mime,readFileSync(new URL('./'+file,import.meta.url)));return;
       }
-      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/database)$/.test(path)) {
+      if(method==='GET' && /^(?:\/database|\/projects\/[a-z0-9-]+\/(?:database|control))$/.test(path)) {
         res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'");
       }
       if (path==='/office' && method==='GET') {

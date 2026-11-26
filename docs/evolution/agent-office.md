@@ -11,25 +11,21 @@ Ouvrir **Agent Office** pour retrouver les agents locaux des projets attribués 
 
 **Lire une mission.** Sélectionner un personnage à la souris, au toucher ou au clavier. Sa fiche donne son projet, son rôle, le statut observé, son dernier contact, son moteur si connu et les liens vers ses missions et résultats. Un avatar peut partager son apparence avec un autre. Le nom accessible, le projet et la fiche distinguent chaque identité. Les contacts périmés restent consultables dans **Liste des postes**. Cette liste reste accessible si le navigateur désactive JavaScript.
 
-**Suivre un travail bref.** Le plan se rafraîchit toutes les cinq secondes quand l’onglet est visible et le direct activé. **Rejouer les trois étapes** montre les trois tentatives terminées d’une même mission, puis rend le direct. Un rafraîchissement peut tomber après la fin d’une tâche courte. La fiche conserve les événements qui en témoignent.
+**Suivre un travail bref.** Quand le direct est activé dans un onglet visible, le navigateur demande un relevé des postes environ toutes les 1,4 secondes. Un changement d’affectation fait marcher le personnage jusqu’à la pièce correspondante. Si une tâche a débuté et s’est terminée entre deux relevés, « Passage récent » signale la restitution du trajet. Les compteurs indiquent l’affectation observée au dernier relevé. **Rejouer les trois étapes** permet de revoir une mission terminée et d’ouvrir ses checkpoints.
 
-**Lire les compteurs.** L’effectif d’une pièce inclut tous ses agents dans le périmètre sélectionné. Le plan montre jusqu’à quatre personnages par pièce à la fois. Les flèches de groupe permettent de les parcourir. Les sessions Cursor référencées par les PR conservent leur rubrique séparée, avec la date de leur relevé. **Atelier classique** retrouve l’ancien rendu.
+**Se repérer.** Le plan commun affiche les agents connectés des projets sélectionnés. Les quatre pièces communiquent autour d’un passage central. Le nom d’une pièce permet de zoomer sans interrompre le suivi. **Plan complet** rétablit la vue d’ensemble. Les agents qui quittent la pièce libèrent leur place. Le réglage système de réduction des animations affiche directement la destination.
 
 ## Architecture du rendu
 
-`/office` fournit au serveur les identités, les contacts et les attributions de l’acteur connecté. `office-scene.ts` distribue les agents aux pièces en utilisant la tâche et le rôle observés. Les pages et les filtres utilisent les mêmes contrôles d’accès que le tableau des postes. Le client reçoit des liens HTML utilisables indépendamment des décors.
+Le serveur associe chaque poste à un triplet projet, identifiant et rôle. Les baux et contacts déterminent les affectations. Les sessions Cursor documentées par des PR restent accessibles dans leur rubrique avec la date du relevé.
 
-Le pilote a été réalisé et vérifié sur le café. Les trois pièces suivantes réutilisent sa grille isométrique et sa palette. Le dessin local assemble les sols, les façades, les fenêtres, les luminaires, le mobilier et les personnages. Un canevas mesure 400 × 228 pixels logiques. Le navigateur adapte sa taille sans lisser ses pixels. La disposition passe de deux colonnes à une sur petit écran.
-
-L’[atlas local](../../src/office/pixel-atlas.webp) regroupe huit meubles et quatre silhouettes sur fond transparent. Le [moteur de dessin](../../src/office/pixel-office.js) utilise une géométrie de secours quand cet atlas est indisponible. Le HTML présente les liens des postes quand le canevas est indisponible. Les meubles et les écrans dessinés sont des éléments de décor. Les effectifs et les résultats consultables proviennent du serveur. Un changement d’affectation peut déclencher une courte transition. Un agent disponible reste immobile dans le rendu pixel et le réglage système de réduction des mouvements est respecté.
-
-Les URL `/office?salle=cafe`, `/office?salle=bureau`, `/office?salle=controle` et `/office?salle=reunion` donnent accès aux pièces. `/office?rendu=classique` restaure le décor précédent côté affichage.
+Le canevas partagé mesure 760 × 412 pixels logiques. Le décor utilise le mobilier de l’atlas local et un dessin de secours si l’image est indisponible. Les personnages sont dessinés pixel par pixel à partir de leur identité. Les URL `/office?salle=cafe`, `/office?salle=bureau`, `/office?salle=controle` et `/office?salle=reunion` ouvrent les pièces. Les anciens favoris de l’atelier classique ouvrent le plan pixel.
 
 ## Qualification
 
-- `node --test test/office-pixel.test.ts` vérifie le placement par tâche et rôle, le retrait des identités déconnectées et la pagination.
-- `node scripts/office-pixel-browser.mjs` vérifie dans Chrome les quatre pièces, les deux tailles d’écran, l’ouverture d’une fiche, le retour au rendu classique et les secours sans atlas et sans JavaScript. Ce scénario utilise deux identités de démonstration pour les contrôles graphiques.
-- `npm run test:browser` exerce le serveur et les workers de recette sur PostgreSQL. Deux baux affectent des agents de recette à deux pièces, un clic ouvre la mission correspondante et la synthèse se rejoue depuis les tentatives terminées. La base utilisée par cette commande est temporaire.
+- `node --test test/office-pixel.test.ts` vérifie les affectations, les identités déconnectées et la compatibilité des anciens liens.
+- `node scripts/office-pixel-browser.mjs` vérifie les déplacements, les tâches brèves, le zoom, le retour au plan, les liens vers les postes et les modes sans atlas, sans JavaScript et avec réduction des mouvements. Il utilise des agents de recette et deux largeurs d’écran.
+- `npm run test:browser` vérifie ces affectations avec des baux PostgreSQL et des missions réelles sur une base temporaire. Le scénario couvre aussi la relecture des trois checkpoints.
 
 <details><summary>Fabrication de la planche de sprites</summary>
 

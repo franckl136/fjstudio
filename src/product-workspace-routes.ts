@@ -3,9 +3,10 @@ import type { Pool } from 'pg';
 import { DomainError, isProjectId, type JsonObject, type Operator } from './contracts.ts';
 import { assertProject, notFound } from './database.ts';
 import { changeProfile, createWorkspaceProject, listWorkspaceProjects, profileDetail, requireProjectAdministrator } from './product-workspace-projects.ts';
-import { activityWeek, readWorkspace, type DeskIdentity } from './product-workspace.ts';
+import { activityWeek, readLoft, readWorkspace, type DeskIdentity } from './product-workspace.ts';
 import type { Repositories } from './repositories.ts';
-import { officePage, profilePage, workspacePage } from './product-workspace-views.ts';
+import { officePage, profilePage, stationUrl, workspacePage } from './product-workspace-views.ts';
+import { officeScene } from './office-scene.ts';
 import { readActivity,activityPage,activityFilter } from './activity.ts';
 
 interface WorkspaceTools {
@@ -52,6 +53,11 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     if (!get) throw new DomainError(405,'method','Méthode indisponible.');
     const project = url.searchParams.get('project') || undefined;
     if (project !== undefined && !isProjectId(project)) throw notFound();
+    if(path==='/office' && !api && url.searchParams.get('loft')==='1') {
+      const data=await readLoft(pool,actor,io.runners??[],project);
+      io.html(res,200,officeScene(data,d=>stationUrl(d,url.searchParams.get('follow')!=='0',project),url.searchParams));
+      return true;
+    }
     const data = await readWorkspace(pool,actor,io.runners ?? [],project);
     if (api) {
       io.json(res,200,path === '/office' ? {capturedAt:data.capturedAt,agents:data.agents,cursorSessions:data.cursorSessions} : data);

@@ -110,6 +110,12 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
       <div><span>À approuver</span><strong>${approvals}</strong><a href="#attention">Voir les décisions</a></div>
       <div><span>Agents connectés</span><strong>${presence.connected}</strong><a href="/office${filter?'?project='+e(filter):''}">${presence.available} disponibles · ${presence.busy} occupés →</a></div>
     </div>
+    <section id="portefeuille" class="panel"><header class="section-head"><h2>Portefeuille de projets</h2>
+      ${'accountRole' in actor && actor.accountRole === 'admin' ? '<a class="button" href="/projects/new">Créer un projet</a>' : ''}</header>
+      <div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
+      ${hasArchives?'<a href="/workspace/archives">Démonstrations archivées</a>':''}
+      ${actor.accountRole!=='viewer' && data.repositories.some(r=>r.local_only)?`<form method="post" action="/workspace/observe">${filter?`<input type="hidden" name="project" value="${e(filter)}">`:''}<button>Actualiser les relevés Git</button></form>`:''}</div>${refreshNote}
+      ${shown.length ? `<div class="table-wrap"><table><thead><tr><th>Projet</th><th>État Git local</th><th>Missions ouvertes¹</th><th>Dernier contrôle</th><th>Ouvrir</th></tr></thead><tbody>${projectRows}</tbody></table></div><p class="field-help">¹ Prêtes, en cours, bloquées ou à approuver.</p>` : `<p>${changedOnly?'Aucun dépôt modifié dans ce périmètre.':'Aucun projet attribué.'}</p>`}</section>
     <div class="workspace-grid insight-grid"><section class="panel git-card"><header class="section-head"><h2>Changements locaux</h2><span>${changedRepos.length} / ${connected.size} dépôts</span></header>
       ${topRepos.length?`<ul class="git-bars">${topRepos.map(r=>`<li><a href="/projects/${e(r.project_id)}/repository">${e(projectName(data,r.project_id))}</a><progress aria-label="Fichiers modifiés hors index" value="${r.worktree!.unstaged}" max="${maximum}"></progress><strong>${r.worktree!.unstaged}</strong></li>`).join('')}</ul>
         <p class="field-help">Fichiers suivis modifiés hors index${changedRepos.length>topRepos.length?' · quatre premiers dépôts':''}</p>`:`<p>${localRepos.some(r=>r.observed_at)?'Les relevés ne signalent aucun changement local.':connected.size?'Premier relevé à effectuer.':'Aucun dossier relié en lecture locale dans ce périmètre.'}</p>`}
@@ -131,12 +137,6 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
       ${data.backup === undefined ? '' : `<dt>Dernier contrôle de sauvegarde</dt><dd>${data.backup ? (data.backup.outcome === 'verified' ? 'Vérifié' : 'Échec')+' · '+date(data.backup.performed_at) : 'Aucun contrôle enregistré'}</dd>`}</dl>
       <div class="actions"><a href="/office${filter ? '?project='+e(filter) : ''}">Ouvrir Agent Office</a>
       <a href="/agents">Catalogue des adaptateurs</a>${actor.accountRole === 'admin' ? '<a href="/people">Comptes locaux</a>' : ''}</div></details></section></div>
-    <section id="portefeuille" class="panel"><header class="section-head"><h2>Portefeuille de projets</h2>
-      ${'accountRole' in actor && actor.accountRole === 'admin' ? '<a class="button" href="/projects/new">Créer un projet</a>' : ''}</header>
-      <div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
-      ${hasArchives?'<a href="/workspace/archives">Démonstrations archivées</a>':''}
-      ${actor.accountRole!=='viewer' && data.repositories.some(r=>r.local_only)?`<form method="post" action="/workspace/observe">${filter?`<input type="hidden" name="project" value="${e(filter)}">`:''}<button>Actualiser les relevés Git</button></form>`:''}</div>${refreshNote}
-      ${shown.length ? `<div class="table-wrap"><table><thead><tr><th>Projet</th><th>État Git local</th><th>Missions ouvertes¹</th><th>Dernier contrôle</th><th>Ouvrir</th></tr></thead><tbody>${projectRows}</tbody></table></div><p class="field-help">¹ Prêtes, en cours, bloquées ou à approuver.</p>` : `<p>${changedOnly?'Aucun dépôt modifié dans ce périmètre.':'Aucun projet attribué.'}</p>`}</section>
     <div class="workspace-grid"><section class="panel" id="missions"><h2>Missions</h2>
       ${data.missions.length ? `<ul class="work-feed">${data.missions.map(m => `<li><div><a href="${e(href(m))}">${e(m.objective)}</a><small>${e(projectName(data,m.project_id))} · ${date(m.at)}</small></div>${badge(m.status)}</li>`).join('')}</ul>` : '<p>Aucune mission enregistrée.</p>'}</section>
     <section class="panel"><header class="section-head"><h2>Journal d’activité</h2><a href="/activity${filter?'?project='+e(filter):''}">Filtrer le journal →</a></header>
@@ -144,7 +144,7 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     data.projects,filter,true,'workspace');
 }
 
-function stationUrl(desk: Desk, following:boolean, filter?: ProjectId) {
+export function stationUrl(desk: Desk, following:boolean, filter?: ProjectId) {
   const params = new URLSearchParams({station:desk.id,stationProject:desk.projectId,role:desk.role});
   if (filter) params.set('project',filter);
   if (!following) params.set('follow','0');

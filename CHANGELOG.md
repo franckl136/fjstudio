@@ -1,5 +1,10 @@
 # Historique du Studio
 
+## 0.4.0-rc.2 · 26 novembre 2026
+
+- Le Loft réunit les quatre pièces sur un plateau pixel. Les personnages traversent les portes selon les affectations reçues. Les passages brefs sont identifiés et le zoom conserve le suivi.
+- Dans Agent Control Room, choisir une finalité adapte les champs en conservant la saisie. La recherche des guides et le filtre des dépôts se trouvent en haut de leurs espaces.
+
 ## 0.4.0-rc.1 · 26 novembre 2026 · candidate de développement Studio
 
 - Le Command Center relie les alertes à leurs missions et partage le calcul de présence avec le Loft. Le journal permet de filtrer par projet, période et type d’événement.

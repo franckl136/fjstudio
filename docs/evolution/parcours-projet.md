@@ -8,7 +8,7 @@ Dans **À examiner**, ouvrez directement la mission bloquée, la validation atte
 
 ## Du besoin au résultat
 
-1. Dans **Agent Control Room**, choisissez une finalité et activez **Adapter le formulaire**. Pour une maintenance, précisez le composant et la procédure de retour. Pour un test, décrivez le scénario et le résultat attendu.
+1. Dans **Agent Control Room**, choisissez une finalité. Les champs s’adaptent immédiatement et votre saisie reste disponible pendant que le formulaire est ouvert. Pour une maintenance, précisez le composant et la procédure de retour. Pour un test, décrivez le scénario et le résultat attendu.
 2. Renseignez le document à examiner, les expressions à retrouver, la portée, la durée maximale et le besoin de validation humaine. Le texte traité reste celui du contrat. Une demande de développement prépare ici une revue de spécification.
 3. Choisissez l’ordonnancement. En parallèle, les deux premières tâches peuvent être attribuées simultanément. En séquentiel, la recherche des critères attend le checkpoint de structure. Dans les deux cas, la synthèse vérifie les deux empreintes.
 4. Relisez le brouillon et validez le plan. En cas d’approbation requise, ouvrez la décision dans le Command Center. Les dépendances et les attributions du plan validé sont enregistrées en PostgreSQL. La fiche permet de retrouver la tentative, le runner, la durée et le résultat.
