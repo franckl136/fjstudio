@@ -4,10 +4,13 @@ import { runProductLabTick } from './product-lab.ts';
 import { sweepControl } from './control-room-queue.ts';
 import { Core, migrationNames } from './core.ts';
 import { createServer } from './http.ts';
+import { syncLinkedCode } from './explorer-code.ts';
 import { identityKey, verifyIdentityMode } from './product-auth.ts';
 import { projectTeams, startProjectTeams } from './project-team.ts';
 
-const port = validPort(process.env.A1_PORT ?? '3030');
+const interfaceOnly=process.argv.includes('--interface');
+const port=validPort((interfaceOnly?process.env.STUDIO_INTERFACE_PORT:process.env.A1_PORT)??'3030');
+if(interfaceOnly && (!process.env.STUDIO_INTERFACE_PORT || port===validPort(process.env.A1_PORT??'3030')))throw new Error('Port local distinct requis pour l’interface.');
 const credentials = getCredentials();
 const pool = createPool();
 pool.on('error', () => console.error('Connexion PostgreSQL locale interrompue.'));
@@ -35,11 +38,11 @@ try {
 }
 console.log(`Folk & Joy Studio : http://127.0.0.1:${port}`);
 const teamStop=new AbortController();
-const teamWork=startProjectTeams(teams,'http://127.0.0.1:'+port,teamStop.signal);
+const teamWork=interfaceOnly?Promise.resolve():startProjectTeams(teams,'http://127.0.0.1:'+port,teamStop.signal);
 
 let reconciling = false;
 const timer = setInterval(async () => {
-  if (reconciling) return;
+  if (interfaceOnly || reconciling) return;
   reconciling = true;
   try {
     await core.sweepExpired();
@@ -52,19 +55,27 @@ const timer = setInterval(async () => {
 timer.unref();
 let labActive: Promise<unknown> | null = null;
 const labTimer=setInterval(()=> {
-  if (!labActive) labActive=runProductLabTick(pool).catch(()=>console.error('Contrôle Lab indisponible.')).finally(()=>{labActive=null;});
+  if (!interfaceOnly && !labActive) labActive=runProductLabTick(pool).catch(()=>console.error('Contrôle Lab indisponible.')).finally(()=>{labActive=null;});
 },3000);
 labTimer.unref();
+let codeWork:Promise<unknown>|null=null;
+function refreshCode(){
+  if(!codeWork)codeWork=syncLinkedCode(pool).catch(()=>console.error('Relevé des structures locales indisponible.')).finally(()=>{codeWork=null;});
+}
+const codeTimer=setInterval(refreshCode,300_000);
+codeTimer.unref();
+refreshCode();
 let closing = false;
 function stop() {
   if (closing) return;
   closing = true;
   teamStop.abort();
   clearInterval(timer);
+  clearInterval(codeTimer);
   clearInterval(labTimer);
   server.close(error => {
     if (error) process.exitCode = 1;
-    void Promise.all([labActive,teamWork]).then(()=>pool.end()).catch(() => { process.exitCode = 1; });
+    void Promise.all([labActive,teamWork,codeWork]).then(()=>pool.end()).catch(() => { process.exitCode = 1; });
   });
 }
 process.on('SIGTERM', stop);

@@ -53,6 +53,15 @@ function policies(): RepositoryPolicy[] {
   return result;
 }
 
+export async function linkedRepositoryDirectory(db:PoolClient,actor:Operator,project:ProjectId) {
+  assertProject(actor,project);
+  const target=(await db.query<{repository_key:string;remote_url:string}>('SELECT repository_key,remote_url FROM project_repositories WHERE project_id=$1',[project])).rows[0];
+  if(!target)return null;
+  const policy=policies().find(p=>p.project===project && p.key===target.repository_key && p.remote===target.remote_url);
+  if(!policy)configurationError();
+  return policy.directory;
+}
+
 function gitProgram(source: string) {
   const windows = process.platform === 'win32';
   const name = windows ? 'git.exe' : 'git';

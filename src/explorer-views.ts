@@ -28,7 +28,7 @@ export function renderSnapshot(base:string,s:Source,h:Snapshot,history:Version[]
   const hidden='<input type="hidden" name="source" value="'+s.id+'"><input type="hidden" name="snapshot" value="'+h.id+'">';
   const nav=`<section class="panel"><h2>${e(s.label)}</h2><p>${e(envs[s.environment])} · ${e(origins[s.origin])} · ${e(m.engine)} ${e(m.version)} · ${date(h.captured_at)}</p>
     <p>${m.schemas.length} schéma(s) · ${signal.tables} table(s) · ${signal.views} vue(s) · ${signal.foreignKeys} clés étrangères · ${signal.indexes} index · ${signal.triggers} triggers · ${m.functions.length} fonctions</p>
-    ${h.reference?'<p>Référence · '+e(h.reference)+'</p>':''}
+    ${h.reference?'<p>'+(s.label.startsWith('Code local · ')?'Empreinte SHA-256 des fichiers locaux':'Référence')+' · '+e(h.reference)+'</p>':''}
     <nav class="actions" aria-label="Vues du schéma"><a class="button" href="${query({})}">Tables et vues</a><a class="button" href="${query({view:'erd'})}">Diagramme relationnel</a>
     <a class="button" href="${query({view:'security'})}">Sécurité et RLS</a><a class="button" href="${query({view:'history'})}">Historique</a></nav>
     ${m.warnings.length?'<details><summary>Limites de cette photographie ('+m.warnings.length+')</summary><ul>'+m.warnings.map(w=>'<li>'+e(w)+'</li>').join('')+'</ul></details>':''}</section>`;

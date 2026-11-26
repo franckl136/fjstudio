@@ -302,6 +302,15 @@ try {
   results.mission = {state:'completed',parallelAgents:2,checkpoints:3,followPaused:true};
   results.quality = await lab(operator,'quality');
   results.preview = await lab(operator,'lab');
+  await writeFile(join(source,'schema.sql'),'CREATE TABLE atlas_room(id int PRIMARY KEY);');
+  await operator.goto(origin+'/database');
+  await submit(operator,operator.getByRole('button',{name:'Actualiser depuis le code'}));
+  const discovered=operator.locator('#depots').getByRole('link',{name:'schema.sql',exact:true});
+  await discovered.click();
+  await operator.getByRole('link',{name:'public.atlas_room',exact:true}).waitFor();
+  await viewer.goto(origin+'/database');
+  assert.equal(await viewer.getByRole('button',{name:'Actualiser depuis le code'}).count(),0);
+  results.codeDiscovery='Fichier SQL local non commité, import global, lecture du schéma dans son projet';
   await operator.goto(origin+'/projects/a/database');
   await operator.getByText('Importer un schéma de projet',{exact:true}).click();
   const schemaForm=operator.locator('form[action$="/database/import"]');

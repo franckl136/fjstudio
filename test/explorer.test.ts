@@ -11,6 +11,10 @@ import { migrate } from '../src/core.ts';
 import { createServer } from '../src/http.ts';
 import { Core } from '../src/core.ts';
 import { once } from 'node:events';
+import { mkdtemp,mkdir,writeFile,rm,link } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { syncProjectCode } from '../src/explorer-code.ts';
 import type { AddressInfo } from 'node:net';
 
 const sql=`CREATE TABLE public.ateliers (site int, id int, PRIMARY KEY(site,id));
@@ -101,4 +105,47 @@ test('Explorer · connexion avec rôle catalogue seul sur grappe de recette isol
     await pool.query('GRANT SELECT ON projects TO '+role);
     await assert.rejects(inspectDedicated(dsn.href,['public']),/dédié aux métadonnées/);
   }finally{await pool.query('DROP OWNED BY '+role);await pool.query('DROP ROLE '+role);}
+});
+
+test('Explorer · code local non commité, empreinte rejouable, lecture bornée et révocation',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'fjstudio-code-')),dir=join(root,'supabase','migrations');
+  const previous=process.env.STUDIO_GIT_REPOSITORIES;
+  const key='schema-local-fixture', project='b';
+  try{
+    process.env.STUDIO_GIT_REPOSITORIES=JSON.stringify([{key,project,directory:root,remote:''}]);
+    await pool.query("INSERT INTO project_repositories(project_id,repository_key,remote_url,registered_by) VALUES($1,$2,'','fixture')",[project,key]);
+    await mkdir(dir,{recursive:true});
+    await writeFile(join(dir,'001_initial.sql'),"CREATE EXTENSION IF NOT EXISTS pgcrypto;");
+    await writeFile(join(dir,'002_rooms.sql'),"CREATE TABLE public.loft(id int PRIMARY KEY); CREATE TRIGGER arrival AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.enter();");
+    await writeFile(join(dir,'002_rooms.down.sql'),"DROP TABLE public.loft;");
+    const first=await syncProjectCode(pool,admin,project);
+    assert.equal(first.sources.length,1,first.status);
+    const source=first.sources[0].id;
+    const hist=()=>versions(pool,admin,project,source);
+    const capture=await snapshot(pool,admin,project,source);
+    assert.deepEqual(capture.structure.tables.map(t=>t.name),['loft']);
+    assert.match(capture.structure.warnings.join(' '),/auth.users/);
+    assert.equal(capture.structure.migrations.length,2);
+    await Promise.all([syncProjectCode(pool,admin,project),syncProjectCode(pool,admin,project)]);
+    assert.equal((await hist()).length,1);
+    await writeFile(join(dir,'003_update.sql'),'ALTER TABLE public.loft ADD COLUMN seats int;');
+    assert.equal((await syncProjectCode(pool,admin,project)).sources[0].updated,true);
+    assert.equal((await hist()).length,2);
+    await assert.rejects(syncProjectCode(pool,{...viewer,projectIds:['b']},project));
+    await assert.rejects(syncProjectCode(pool,op,project));
+    await writeFile(join(dir,'004_bad.sql'),'BAD SQL TEXT');
+    assert.equal((await syncProjectCode(pool,admin,project)).sources.length,0);
+    assert.equal((await hist()).length,2);
+    await rm(join(dir,'004_bad.sql'));
+    await writeFile(join(root,'unrelated.txt'),'CREATE TABLE must_not_import(i int);');
+    await link(join(root,'unrelated.txt'),join(root,'schema.sql'));
+    assert.equal((await syncProjectCode(pool,admin,project)).sources.length,0);
+    await rm(join(root,'schema.sql'));
+    await revokeSource(pool,admin,project,source);
+    assert.equal((await syncProjectCode(pool,admin,project)).sources.length,0);
+    assert.equal((await sources(pool,admin,project)).some(s=>s.id===source),false);
+  }finally{
+    if(previous===undefined)delete process.env.STUDIO_GIT_REPOSITORIES;else process.env.STUDIO_GIT_REPOSITORIES=previous;
+    await rm(root,{recursive:true,force:true});
+  }
 });

@@ -1,5 +1,11 @@
 # Historique du Studio
 
+## 0.4.0-rc.3 · 26 novembre 2026
+
+- Database Explorer repère les définitions SQL, Supabase et Prisma dans les dossiers reliés. Un relevé automatique actualise les versions et le tableau des projets donne accès aux diagrammes.
+- Le Loft distingue les silhouettes par leurs vêtements, coiffures et accessoires dans la vue commune.
+
+
 ## 0.4.0-rc.2 · 26 novembre 2026
 
 - Le Loft réunit les quatre pièces sur un plateau pixel. Les personnages traversent les portes selon les affectations reçues. Les passages brefs sont identifiés et le zoom conserve le suivi.

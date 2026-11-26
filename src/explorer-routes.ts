@@ -6,6 +6,7 @@ import { listWorkspaceProjects } from './product-workspace-projects.ts';
 import { layout,e } from './views.ts';
 import { sources,readSource,versions,snapshot,importSource,revokeSource } from './explorer-store.ts';
 import { connectionChoices,refreshConnection } from './explorer-connections.ts';
+import { lastCodeScan,syncLinkedCode,syncProjectCode } from './explorer-code.ts';
 import { configure,overview,renderSnapshot } from './explorer-views.ts';
 import { differences,schemaSignals } from './explorer-model.ts';
 
@@ -15,10 +16,16 @@ type IO={
   redirect(res:ServerResponse,path:string):void;
 };
 export async function databaseRoute(pool:Pool,req:IncomingMessage,res:ServerResponse,url:URL,actor:Operator,api:boolean,io:IO) {
-  const path=url.pathname.replace(/^\/api\//,'/'),route=/^(?:\/projects\/([^/]+))?\/database(?:\/(import|capture|revoke))?$/.exec(path);
+  const path=url.pathname.replace(/^\/api\//,'/'),route=/^(?:\/projects\/([^/]+))?\/database(?:\/(import|capture|revoke|sync))?$/.exec(path);
   if(!route)return false;
   const project=route[1]??null,action=route[2],base=project?'/projects/'+project+'/database':'/database';
   if(project){if(!isProjectId(project))throw notFound();assertProject(actor,project);}
+  if(req.method==='POST' && action==='sync'){
+    await io.body(req,api?'json':'form');
+    const scans=project?[await syncProjectCode(pool,actor,project)]:await syncLinkedCode(pool,actor);
+    if(api)io.json(res,200,{scans});else io.redirect(res,base+'#depots');
+    return true;
+  }
   if(req.method==='POST'&&action&&project){
     const values=await io.body(req,api?'json':'form');
     if(action==='revoke'){
@@ -48,9 +55,19 @@ export async function databaseRoute(pool:Pool,req:IncomingMessage,res:ServerResp
   if(api){io.json(res,200,{sources:list});return true;}
   const projects=await listWorkspaceProjects(pool,actor);
   const area=project?projects.find(p=>p.id===project)?.name:'Studio interne';
-  const listProjects=project?'':`<section class="panel"><h2>Sources des projets</h2><ul class="work-feed">${projects.map(p=>'<li><a href="/projects/'+e(p.id)+'/database">'+e(p.name)+'</a></li>').join('')}</ul></section>`;
+  const code=(await pool.query<{project_id:string;id:string;label:string}>(`SELECT project_id,id,label FROM explorer_sources
+    WHERE project_id=ANY($1::text[]) AND created_by='studio-code' AND revoked_at IS NULL ORDER BY label`,[project?[project]:actor.projectIds])).rows;
+  const rows=projects.filter(p=>!project||p.id===project).map(p=>{
+    const scan=lastCodeScan(pool,p.id);
+    const links=code.filter(s=>s.project_id===p.id).map(s=>`<a href="/projects/${e(p.id)}/database?source=${s.id}">${e(s.label.replace(/^Code local · /,''))}</a>${scan&&!scan.sources.some(source=>source.id===s.id)?' (version antérieure)':''}`);
+    return `<tr><th><a href="/projects/${e(p.id)}/database">${e(p.name)}</a></th><td>${e(scan?.status??(links.length?'Structure disponible':'En attente du relevé'))}</td><td>${links.join(' · ')||'—'}</td></tr>`;
+  }).join('');
+  const discovery=`<section class="panel" id="depots"><header class="section-head"><h2>Structures du code local</h2>
+    ${actor.accountRole==='viewer'?'':'<form method="post" action="'+base+'/sync"><button>Actualiser depuis le code</button></form>'}</header>
+    <p>Le Studio relit les schémas SQL et Prisma des dossiers reliés toutes les cinq minutes, y compris les modifications locales. Chaque version conserve l’empreinte de ses fichiers.</p>
+    <div class="table-wrap"><table><thead><tr><th>Projet</th><th>Dernier relevé</th><th>Ouvrir la structure</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   const form=project&&actor.accountRole!=='viewer'?configure(base,connectionChoices(actor,project)):'';
   io.html(res,200,layout('Database Explorer',`<header class="heading"><div><h1>Database Explorer</h1><p>${e(area)}</p></div></header>`+
-    (canSeeInternal||project?overview(base,list):'')+form+listProjects,projects,project??'',true,'database'));
+    discovery+(canSeeInternal||project?overview(base,list):'')+form,projects,project??'',true,'database'));
   return true;
 }

@@ -7,7 +7,7 @@ import { finish,hash,invalid,model,table,type SchemaModel,type Constraint,type T
 function input(text:string) {
   if(typeof text!=='string'||!text.trim()||Buffer.byteLength(text)>96000) throw invalid('Le schéma doit contenir entre 1 et 96 000 octets.');
 }
-export async function importSql(ddl:string,base?:SchemaModel):Promise<SchemaModel> {
+export async function importSql(ddl:string,base?:SchemaModel,mode:'document'|'series'|'supabase'='document'):Promise<SchemaModel> {
   input(ddl);
   let tree:PgNode;
   try { tree=await parse(ddl); } catch { throw invalid('Le parseur PostgreSQL ne reconnaît pas ce document SQL.'); }
@@ -78,7 +78,13 @@ export async function importSql(ddl:string,base?:SchemaModel):Promise<SchemaMode
       m.tables.push(t);continue;
     }
     const ref=n.relation??n.table,t=ref?find(ref):undefined;
-    if(['AlterTableStmt','CreateTrigStmt','CreatePolicyStmt','AlterPolicyStmt','IndexStmt'].includes(type)&&!t)throw invalid('Une table de la migration est absente du schéma de départ.');
+    if(['AlterTableStmt','CreateTrigStmt','CreatePolicyStmt','AlterPolicyStmt','IndexStmt'].includes(type)&&!t){
+      if(mode==='supabase' && ['auth','storage','realtime'].includes(ref?.schemaname)){
+        m.warnings.push('Objet fourni par Supabase, hors des migrations locales · '+ref.schemaname+'.'+ref.relname);
+        continue;
+      }
+      throw invalid('Une table de la migration est absente du schéma de départ.');
+    }
     if(t&&((type==='RenameStmt'&&['OBJECT_TABLE','OBJECT_VIEW'].includes(n.renameType))||type==='AlterObjectSchemaStmt')){
       const schema=type==='AlterObjectSchemaStmt'?String(n.newschema):t.schema,name=type==='RenameStmt'?String(n.newname):t.name;
       for(const a of m.tables)for(const c of a.constraints)if(c.target?.schema===t.schema&&c.target.table===t.name){c.target.schema=schema;c.target.table=name;}
@@ -96,7 +102,9 @@ export async function importSql(ddl:string,base?:SchemaModel):Promise<SchemaMode
     if(type==='AlterTableStmt'&&t) {
       for(const x of n.cmds) {
         const c=x.AlterTableCmd,kind=c.subtype,def=c.def;
-        if(kind==='AT_AddColumn'&&def?.ColumnDef)column(t,def.ColumnDef);
+        if(kind==='AT_AddColumn'&&def?.ColumnDef){
+          if(!c.missing_ok || !t.columns.some(col=>col.name===def.ColumnDef.colname))column(t,def.ColumnDef);
+        }
         else if(kind==='AT_AddConstraint'&&def?.Constraint)constraint(t,def.Constraint);
         else if(kind==='AT_DropConstraint')t.constraints=t.constraints.filter(k=>k.name!==c.name);
         else if(kind==='AT_DropColumn'){
@@ -126,7 +134,7 @@ export async function importSql(ddl:string,base?:SchemaModel):Promise<SchemaMode
       if(pk)target.columns=[...pk.columns];else m.warnings.push('Clé primaire cible absente de cet import.');
     }
   }
-  if(!m.tables.length&&!m.functions.length)throw invalid('Document sans table, vue ou fonction représentée.');
+  if(mode==='document'&&!m.tables.length&&!m.functions.length)throw invalid('Document sans table, vue ou fonction représentée.');
   return finish(m);
 }
 

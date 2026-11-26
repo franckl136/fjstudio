@@ -18,6 +18,16 @@ La commande `npm run migrate` tente une capture après la migration. Pour actual
 
 Le panneau **Sécurité et RLS** réunit les états RLS, les commandes, les rôles, les clauses USING et WITH CHECK, ainsi que les fonctions SECURITY DEFINER. Un administrateur peut revoir le contexte de chacune. Les littéraux de valeurs sont masqués. Les expressions dont le format n’est pas représenté portent le nom de leur catégorie syntaxique. La photographie conserve la présence des commentaires et les empreintes techniques des fonctions et triggers. Les corps des fonctions, descriptions libres, mots de passe et données de lignes restent dans la source.
 
+## Retrouver les structures dans le code local
+
+Ouvrez **Database Explorer → Structures du code local**. Pour chaque projet relié, le tableau indique le résultat du dernier relevé et propose un lien vers chaque structure disponible. Ouvrez une source puis **Diagramme relationnel** pour consulter les relations. Le même tableau existe dans l’espace de chaque projet.
+
+Le Studio relit les dossiers reliés au démarrage puis toutes les cinq minutes. **Actualiser depuis le code** déclenche un relevé immédiat pour tous vos projets ou pour le projet affiché. Les lecteurs peuvent consulter les versions enregistrées.
+
+Le relevé recherche les fichiers `schema.prisma`, `prisma/schema.prisma`, `schema.sql`, `db/schema.sql`, `supabase/schema.sql` et les répertoires conventionnels de migrations PostgreSQL, Supabase et Prisma. Il visite également les modules de premier niveau dans `apps` et `packages`. Il analyse les définitions du disque, y compris celles en cours de rédaction. Une empreinte SHA-256 identifie l’ensemble des fichiers et leurs chemins. L’historique permet de comparer deux versions. Une source révoquée reste révoquée.
+
+Les éventuelles limites de représentation figurent dans chaque photographie. Un dépôt qui utilise un service hébergé sans déclarer de structure SQL ou Prisma reste visible dans le tableau.
+
 ## Importer une source de projet
 
 Ouvrez la fiche d’un projet puis son Database Explorer, ou choisissez le projet sur la page d’accueil du module. Dépliez **Importer un schéma de projet**. Donnez un nom de source et un environnement. La référence facultative accepte un commit ou un nom de fichier SQL/Prisma. Les utilisateurs disposant d’un accès en écriture au projet peuvent importer. Un lecteur peut consulter les instantanés de ses projets.

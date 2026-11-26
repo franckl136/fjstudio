@@ -63,10 +63,24 @@ async function persist(c:PoolClient,s:Source,actor:string,m:SchemaModel,referenc
   await c.query('INSERT INTO explorer_snapshots(id,source_id,actor,reference,digest,structure) VALUES ($1,$2,$3,$4,$5,$6::jsonb)',[id,s.id,actor,reference,digest,json]);
   return {source:s.id,id};
 }
+export const codePrefix='Code local · ';
+export async function storeCodeSnapshot(c:PoolClient,actor:Operator,project:string,path:string,origin:'sql'|'prisma',reference:string,build:()=>Promise<SchemaModel>) {
+  edit(actor,project);
+  const f=sourceFields('local',codePrefix+path,reference);
+  const previous=(await c.query<{created_by:string;revoked_at:Date|null}>(
+    'SELECT created_by,revoked_at FROM explorer_sources WHERE project_id=$1 AND environment=$2 AND label=$3 FOR UPDATE',[project,f.environment,f.label])).rows[0];
+  if(previous?.revoked_at)return null;
+  if(previous && previous.created_by!=='studio-code')throw invalid('Une source manuelle porte déjà ce nom.');
+  const s=await referenceSource(c,project,f.environment,f.label,origin,'studio-code');
+  const last=(await c.query<{id:string;reference:string}>('SELECT id,reference FROM explorer_snapshots WHERE source_id=$1 ORDER BY captured_at DESC,id DESC LIMIT 1',[s.id])).rows[0];
+  if(last?.reference===reference)return {source:s.id,id:last.id,updated:false};
+  return {...await persist(c,s,actor.id,await build(),reference),updated:true};
+}
 export async function importSource(pool:Pool,actor:Operator,project:string,v:Record<string,unknown>) {
   edit(actor,project);
   const f=sourceFields(v.environment,v.label,v.reference??''),origin=v.origin;
   if(!['sql','prisma','migration'].includes(String(origin))||typeof v.document!=='string')throw invalid('Format d’import invalide.');
+  if(f.label.startsWith(codePrefix))throw invalid('Ce nom est réservé aux sources du code local.');
   const text=v.document;
   return transaction(pool,async c=>{
     const s=await referenceSource(c,project,f.environment,f.label,origin as Origin,actor.id);

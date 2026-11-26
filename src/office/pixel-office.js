@@ -314,7 +314,10 @@ function portrait(canvas,seed,step=0,area='coffee') {
   const r=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
   ctx.clearRect(0,0,24,33);
   const left=step===1?-1:step===2?1:0,right=-left;
-  function shoe(x,y){r(x,y,6,4,edge);r(x+1,y,4,2,'#626769');r(x+1,y+3,5,1,sole);}
+  function shoe(x,y){
+    r(x,y,5,3,edge);r(x+1,y+1,6,3,edge);r(x+2,y+1,3,1,'#8b9188');
+    r(x+1,y+2,5,1,'#657176');r(x+2,y+3,5,1,sole);
+  }
   r(6+left,24,5,5,edge);r(7+left,24,4,4,pants);shoe(5+left,28-(step===2?1:0));
   r(12+right,24,5,5,edge);r(13+right,25,3,3,pants);shoe(12+right,28-(step===1?1:0));
   ctx.save();if(step)ctx.translate(0,-1);
@@ -343,6 +346,25 @@ function portrait(canvas,seed,step=0,area='coffee') {
   if(style===3){r(7,0,8,4,hair);r(12,1,6,2,hair);r(12,8,7,1,edge);r(12,9,1,2,edge);r(16,9,1,2,edge);}
   if(style===4){r(5,1,10,4,coat);r(4,4,14,2,seam);r(9,0,4,2,sole);}
   if(style===5){r(3,0,6,4,hair);r(8,2,7,4,hair);r(6,10,1,2,'#e5bc6a');}
+  const outfit=(seed>>>16)%4;
+  if(outfit===0){ // Zip hoodie with a folded collar, drawstrings and pouch.
+    r(7,16,3,1,seam);r(13,16,3,1,seam);r(8,17,2,2,coat);r(13,17,2,2,coat);
+    r(9,18,1,2,sole);r(13,18,1,2,sole);r(10,21,4,2,seam);
+  }else if(outfit===1){ // Short denim jacket over a pale tee.
+    r(7,17,3,1,sole);r(9,18,1,1,sole);r(13,17,2,1,sole);
+    r(7,20,2,1,seam);r(14,20,2,1,seam);r(7,23,9,1,seam);
+  }else if(outfit===2){
+    r(7,18,9,2,coat);r(7,20,9,2,sole);r(7,22,9,1,coat);
+  }else{ // Messenger strap and satchel.
+    for(let k=0;k<6;k++)r(14-k,17+k,2,2,'#75503f');
+    r(5,22,6,4,edge);r(6,22,5,3,'#ab7951');r(7,23,1,1,brass);
+  }
+  // Offset eyes, a stepped nose and a lower lip keep the face readable at game scale.
+  r(12,8,2,2,'#fff1d3');r(13,8,1,2,edge);r(16,8,2,2,'#fff1d3');r(17,8,1,2,edge);
+  r(17,10,2,1,shade);r(12,12,2,1,shade);r(14,12,2,1,'#8d5747');
+  if(style===3){r(11,8,1,2,edge);r(11,10,3,1,edge);r(15,8,1,2,edge);r(16,10,2,1,edge);}
+  if(style===0){r(6,2,2,1,glint);r(10,1,2,1,glint);r(4,5,2,1,glint);}
+  if(style===2){r(3,6,1,7,glint);r(4,11,2,1,coat);}
   ctx.restore();
 }
 
