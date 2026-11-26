@@ -112,6 +112,18 @@ test('App Lab · Chromium réel sans réseau, capture PNG mesurée et remise clo
     verdict:row.verdict,width:960,height:600,bytes:png.length,screenshot:row.screenshot_sha,profileResults:row.result?.checks.length }));
 });
 
+test('App Lab · conserve le motif borné quand le worker ne reconnaît plus le profil réservé',async()=>{
+  const job=await queueLab(pool,actor,'a','atelier','visual',randomUUID(),second);
+  await pool.query("UPDATE product_lab_runs SET profile_version='fixture-retired-v1' WHERE id=$1",[job.id]);
+  assert.ok(await runProductLabTick(pool));
+  const row=await detailLab(pool,actor,'a',job.id);
+  assert.equal(row.verdict,'NOT QUALIFIED');
+  const execution=row.result?.checks.find(check=>check.id==='execution');
+  assert.equal(execution?.status,'not_run');
+  assert.match(execution?.observed ?? '',/\[snapshot\]$/);
+  assert.equal(row.screenshot_sha,null);
+});
+
 test('Quality Lab · compilateur strict local, erreur de type et dépendance hors profil',async t=>{
   const third = revision('<!doctype html>',second,"import type { Slot } from './external'; export type Result = Slot;");
   const fourth = revision('<!doctype html>',third,'// @ts-nocheck\nconst x: number = false;');

@@ -3,6 +3,7 @@
 const { spawn } = require('node:child_process');
 const { createServer } = require('node:http');
 const { randomUUID } = require('node:crypto');
+const { readFile } = require('node:fs/promises');
 const chromePath = '/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell';
 
 async function readBytes() {
@@ -104,7 +105,26 @@ async function capture() {
     server.close();
   }
 }
-capture().then(data => process.stdout.write(JSON.stringify(data)), () => {
-  process.stderr.write('capture_failed\n');
-  process.exitCode = 1;
-});
+// Only fixed cgroup counters and controlled exit codes cross the isolation boundary.
+async function counter(file,key) {
+  try {
+    const entry=(await readFile('/sys/fs/cgroup/'+file,'utf8')).split('\n').find(line=>line.startsWith(key+' '));
+    return entry?Number(entry.slice(key.length+1)):null;
+  } catch {return null;}
+}
+async function pressure() {
+  return Promise.all([counter('pids.events','max'),counter('memory.events','oom_kill')]);
+}
+(async()=>{
+  const before=await pressure();
+  try {process.stdout.write(JSON.stringify(await capture()));}
+  catch(error) {
+    const after=await pressure();
+    const increased=i=>before[i]!==null && after[i]!==null && after[i]>before[i];
+    const failures={input_limit:81,empty_input:81,browser_closed:82,browser_protocol:83,
+      navigation_failed:84,missing_document:84,screenshot_limit:85};
+    if(increased(1))process.exitCode=87;
+    else if(increased(0))process.exitCode=86;
+    else process.exitCode=Object.hasOwn(failures,error?.message)?failures[error.message]:1;
+  }
+})();

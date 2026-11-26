@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import { digestJson, DomainError, type Operator, type ProjectId } from './contracts.ts';
 import { assertId, assertProject, notFound, transaction } from './database.ts';
 import { labDigest, labSources, readLabSnapshot, type LabSnapshot, type LabInventory } from './product-lab-source.ts';
-import { image, compilerImage, checkTypeScript, limits, renderLab, type Rendered } from './product-lab-render.ts';
+import { image, compilerImage, checkTypeScript, limits, renderLab, labFailureReason, type Rendered } from './product-lab-render.ts';
 
 export const labProfiles = {
   typescript: { title: 'Typage TypeScript strict', version: 'standalone-ts-v1', description: 'Vérifie une unité TypeScript autonome avec le compilateur du Studio en conteneur isolé.' },
@@ -245,8 +245,9 @@ export async function runProductLabTick(pool: Pool) {
         report.screenshotSha256=labDigest(png);
       }
     }
-  } catch {
-    report.checks.push({id:'execution',title:'Exécution complète',status:'not_run',observed:'Image locale, capture ou instantané indisponible. Vérifier la configuration du runner.'});
+  } catch(error) {
+    const failure=labFailureReason(error);
+    report.checks.push({id:'execution',title:'Exécution complète',status:'not_run',observed:failure.observed+' ['+failure.code+']'});
   }
   report.elapsedMs=Date.now()-start;
   await pool.query(`UPDATE product_lab_runs SET state='finished',finished_at=clock_timestamp(),verdict=$2,
