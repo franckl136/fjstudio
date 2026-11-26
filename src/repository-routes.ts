@@ -26,13 +26,14 @@ function repositoryPage(projects: Projects, project: string, state: State) {
       <p>${o.worktree.staged} indexé(s) · ${o.worktree.unstaged} modifié(s) · ${o.worktree.untracked} entrée(s) non suivie(s)</p>
       <p>${e(comparison)}</p>${branches}<p>Enregistré par ${e(o.observed_by)} · ${date(o.recorded_at)}</p></div></li>`;
   }).join('');
-  const registry=target ? `<p>${e(target.remote_url)} · Enregistré par ${e(target.registered_by)}</p>
+  const directory=state.available.find(p=>p.key===target?.repository_key)?.directory;
+  const registry=target ? `<p>${e(target.remote_url || 'Lecture locale uniquement')}${directory?' · <code>'+e(directory)+'</code>':''}</p>
     <div class="actions"><form method="post" action="${path}/observe"><button>Observer le checkout</button></form>
-    <form method="post" action="${path}/fetch"><label>Branche distante à comparer (facultatif)
+    ${target.remote_url?`<form method="post" action="${path}/fetch"><label>Branche distante à comparer (facultatif)
     <input name="reference" maxlength="200" placeholder="Branche locale par défaut"></label>
-    <button>Récupérer les branches GitHub</button></form></div>` :
+    <button>Récupérer les branches GitHub</button></form>`:''}</div>` :
     state.available.length ? `<form action="${path}/register" method="post"><label>Dépôt autorisé
-    <select name="key">${state.available.map(p=>`<option value="${e(p.key)}">${e(p.remote)}</option>`).join('')}</select>
+    <select name="key">${state.available.map(p=>`<option value="${e(p.key)}">${e(p.remote || p.directory)}</option>`).join('')}</select>
     </label><button>Enregistrer le dépôt</button></form>` : '<p>Aucun dépôt autorisé pour ce projet.</p>';
   return layout('Dépôt Git',`<a class="back" href="/projects/${project}">← Projet ${e(project.toUpperCase())}</a>
     <div class="heading"><div><h1>Dépôt Git</h1><p>Version de code associée aux missions</p></div></div>

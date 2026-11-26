@@ -11,8 +11,31 @@ import type { Operator } from '../src/contracts.ts';
 import { createWorkspaceProject, changeProfile, profileDetail } from '../src/product-workspace-projects.ts';
 import { workspaceRoute } from '../src/product-workspace-routes.ts';
 import { readWorkspace, type DeskIdentity } from '../src/product-workspace.ts';
+import { importCursorPulls, cursorPulls } from '../src/cursor-sessions.ts';
+import { orderedProjects } from '../src/views.ts';
 
 const owner: Operator = { id: 'workspace-owner', accountRole: 'admin', projectIds: ['a','b'] };
+test('Ordre français des projets, accents, nombres et noms identiques',()=>{
+  const names=[{id:'b',name:'Équipe 10'},{id:'z',name:'équipe 2'},{id:'c',name:'Equipe 2'},{id:'a',name:'Atelier'}];
+  assert.deepEqual(orderedProjects(names).map(p=>p.id),['a','c','z','b']);
+  assert.deepEqual(names.map(p=>p.id),['b','z','c','a']);
+});
+
+test('Sessions Cursor · lien corroboré, import atomique, reprise des PR et périmètre du projet',async()=>{
+  await pool.query("INSERT INTO project_repositories(project_id,repository_key,remote_url,registered_by) VALUES ('b','cursor-test','','recette')");
+  const agent='bc-'+randomUUID();
+  const pr={number:7,title:'Relecture des articles',url:'https://github.com/example/atelier/pull/7',body:'[Session](https://cursor.com/agents/'+agent+')',
+    headRefName:'cursor/articles',state:'OPEN',isDraft:true};
+  const t=new Date(Date.now()-60000);
+  assert.equal(await importCursorPulls(pool,'b','example/atelier',[pr],t),1);
+  await importCursorPulls(pool,'b','example/atelier',[{...pr,state:'MERGED'}],new Date());
+  await importCursorPulls(pool,'b','example/atelier',[pr],t);
+  assert.equal(await importCursorPulls(pool,'b','example/atelier',[{...pr,body:'Simple branche Cursor'}],t),0);
+  await assert.rejects(importCursorPulls(pool,'b','example/atelier',[{...pr,number:8,url:pr.url.slice(0,-1)+'8'},{...pr,url:'https://example.net/'}],t));
+  assert.deepEqual((await cursorPulls(pool,owner,'b')).map(r=>[r.pr_number,r.state]),[[7,'merged']]);
+  assert.equal((await cursorPulls(pool,operator)).length,0);
+  await assert.rejects(cursorPulls(pool,operator,'b'),{status:404});
+});
 const operator: Operator = { id: 'op-alpha', accountRole: 'operator', projectIds: ['a'] };
 const viewer: Operator = { id: 'lecteur-alpha', accountRole: 'viewer', projectIds: ['a'] };
 const profile = {
@@ -123,7 +146,8 @@ test('Agent Office · bail actif, contact périmé, poste sans contact, pause du
   assert.equal(filtered.backup?.outcome,'verified');
   assert(!JSON.stringify(filtered.backup).includes('preuve-administrateur'));
   const desk = await get('/office?station=analyseur&stationProject=a&role=preparer&follow=1',operator);
-  assert.equal(desk.refresh,'12');
+  assert.equal(desk.refresh,undefined);
+  assert.match(desk.html,/data-follow="on"/);
   assert.match(desk.html,/class="office-station occupied"/);
   assert(desk.html.includes('/projects/a/control/'+a));
   assert.match(desk.html,/Contrôle &lt;Atelier&gt;/);
@@ -136,5 +160,6 @@ test('Agent Office · bail actif, contact périmé, poste sans contact, pause du
   assert.equal(idle.refresh,undefined);
   assert.doesNotMatch(idle.html,/class="office-station occupied"/);
   assert.match(idle.html,/Bail expiré/);
-  assert.match(idle.html,/Suivi en pause/);
+  assert.match(idle.html,/data-follow="on"/);
+  assert.match((await get('/office?follow=0',operator)).html,/Suivi en pause/);
 });

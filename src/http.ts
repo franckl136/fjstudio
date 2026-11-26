@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { productReviewRoute } from './product-review-routes.ts';
+import { cursorPulls } from './cursor-sessions.ts';
 import { productCampaignRoute } from './product-campaign-routes.ts';
 import { productHandoffRoute } from './product-handoff-routes.ts';
 import { documentPlan, controlAdapters } from './control-room-adapters.ts';
@@ -9,11 +10,12 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Core } from './core.ts';
 import type { Credential, JsonObject, Operator, ProjectId } from './contracts.ts';
 import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts';
-import { loginPage, projectPage, missionPage, errorPage } from './views.ts';
+import { loginPage, projectPage, missionPage, errorPage,layout,e,orderedProjects } from './views.ts';
 
 import { HumanAccess, identityKey } from './product-auth.ts';
 import { cookie, humanCookie, humanLogin, humanRoute } from './product-auth-routes.ts';
 import { workspaceRoute } from './product-workspace-routes.ts';
+import { projectTeamBrief } from './project-team-brief.ts';
 import { controlRoomRoute,controlRunnerRoute } from './control-room-routes.ts';
 import { productLabRoute } from './product-lab-routes.ts';
 import { visibleAgents } from './agents.ts';
@@ -23,6 +25,9 @@ import { agentPage, commandPage, knowledgePage, knowledgeDetail } from './studio
 import { missionQuality } from './quality.ts';
 
 const css = readFileSync(new URL('./style.css', import.meta.url));
+const officeAssets = new Map(['work-room.png','review-room.png','maker.png','reviewer.png','atelier-paris.webp','equipe-atelier.webp','live.js'].map(name =>
+  ['/office-assets/'+name, { type:name.endsWith('.webp')?'image/webp':name.endsWith('.png')?'image/png':'text/javascript; charset=utf-8',
+    bytes:readFileSync(new URL('./office/'+name,import.meta.url)) }]));
 const cookieName = 'a1_operator';
 const sessionTtlMs = 8 * 60 * 60 * 1000;
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -104,10 +109,16 @@ function localAuthority(req: IncomingMessage): string {
   return host;
 }
 
-export function createServer(core: Core, credentials: readonly Credential[], humanKey: Buffer | undefined = process.env.STUDIO_HUMAN_AUTH === '1' ? identityKey() : undefined, localAdminPasswordOnly=process.env.STUDIO_LOCAL_ADMIN_PASSWORD_ONLY==='1'): Server {
+export function createServer(core: Core, credentials: readonly Credential[], humanKey: Buffer | undefined = process.env.STUDIO_HUMAN_AUTH === '1' ? identityKey() : undefined, localAdminPasswordOnly=process.env.STUDIO_LOCAL_ADMIN_PASSWORD_ONLY==='1',archives:readonly string[]=[]): Server {
   const human = humanKey ? new HumanAccess(core.pool,humanKey,localAdminPasswordOnly) : null;
   const identities = new Map(credentials.map(value => [hash(value.token), value]));
+  const teamProjects=new Set(credentials.flatMap(c=>c.kind==='runner' && c.engine==='control'?[c.projectId]:[]));
   const sessions = new Map<string, { actor: Operator; expiresAt: number }>();
+  function visibleScope<T extends Operator>(actor:T,path:string):T {
+    if(!archives.length || path.replace(/^\/api/,'')==='/workspace/archives') return actor;
+    const direct=/^(?:\/api)?\/projects\/([^/]+)/.exec(path)?.[1];
+    return {...actor,projectIds:actor.projectIds.filter(id=>!archives.includes(id)||id===direct)};
+  }
 
   function browserSession(req: IncomingMessage) {
     const value = req.headers.cookie?.split(';').map(part => part.trim())
@@ -124,10 +135,27 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
     return match ? identities.get(hash(match[1])) : undefined;
   }
 
-  async function studioRoute(req: IncomingMessage, res: ServerResponse, url: URL, actor: Operator, api: boolean) {
+  async function studioRoute(req: IncomingMessage, res: ServerResponse, url: URL, actor: Operator, api: boolean,hasArchives:boolean) {
     if (actor.accountRole === 'viewer' && req.method !== 'GET') fail(403,'read_only','Ce compte dispose d’un accès en lecture.');
-    const io = {body,json,html,redirect,runners:credentials.flatMap(c=>c.kind==='runner'?[{id:c.id,projectId:c.projectId,role:c.role}]:[])};
+    const io = {body,json,html,redirect,hasArchives,repositories:core.repositories,runners:credentials.flatMap(c=>c.kind==='runner'?[{id:c.id,projectId:c.projectId,role:c.role}]:[])};
+    if(url.pathname.replace(/^\/api/,'')==='/workspace/archives' && req.method==='GET') {
+      const allowed=await core.listProjects(actor), archived=allowed.filter(p=>archives.includes(p.id));
+      if(api) json(res,200,{projects:archived});
+      else html(res,200,layout('Démonstrations archivées',`<header class="heading"><h1>Démonstrations archivées</h1></header>
+        <section class="panel"><p>Ces projets conservent les missions et les preuves de recette.</p><ul>${archived.map(p=>`<li><a href="/projects/${e(p.id)}">${e(p.name)}</a></li>`).join('')}</ul>
+        <a href="/workspace">Retour au portefeuille</a></section>`,allowed.filter(p=>!archives.includes(p.id)),'',true));
+      return true;
+    }
     if (!api && url.pathname==='/' && req.method==='GET') { redirect(res,'/workspace'); return true; }
+    const teamPath=!api && /^\/projects\/([a-z][a-z0-9-]*)\/team-brief$/.exec(url.pathname);
+    if(teamPath && req.method==='POST') {
+      const project=teamPath[1];
+      if(!teamProjects.has(project)) fail(404,'project','Équipe introuvable.');
+      const input=await body(req,'form');
+      exactKeys(input,'commandKey','observation','kind');
+      const result=await projectTeamBrief(core.pool,actor,project,String(input.observation),String(input.kind),String(input.commandKey));
+      redirect(res,'/projects/'+project+'/control/'+result.id);return true;
+    }
     if (await workspaceRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productReviewRoute(core.pool,req,res,url,actor,api,io)) return true;
     if (await productHandoffRoute(core.pool,req,res,url,actor,api,io)) return true;
@@ -236,6 +264,11 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       const url = new URL(req.url, 'http://' + host);
       const path = url.pathname;
       const method = req.method;
+      const officeAsset=officeAssets.get(path);
+      if (officeAsset && method==='GET') { send(res,200,officeAsset.type,officeAsset.bytes);return; }
+      if (path==='/office' && method==='GET') {
+        res.setHeader('Content-Security-Policy',res.getHeader('Content-Security-Policy')+"; script-src 'self'; connect-src 'self'");
+      }
       if (path === '/style.css' && method === 'GET') {
         send(res, 200, 'text/css; charset=utf-8', css);
         return;
@@ -255,6 +288,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         if (path.startsWith('/api/runner/')) {
           if (auth.kind !== 'runner') fail(403, 'scope', 'Accès réservé au runner de confiance.');
           if (await controlRunnerRoute(core.pool,req,res,url,auth,{body,json})) return;
+          if(auth.engine==='control') fail(403,'scope','Cette équipe travaille uniquement sur les missions documentaires du projet.');
           if (method === 'POST' && path === '/api/runner/claim') {
             exactKeys(await body(req, 'json'));
             json(res, 200, { assignment: await core.claim(auth) });
@@ -275,7 +309,9 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
           fail(404, 'not_found', 'Opération runner indisponible.');
         }
         if (auth.kind !== 'operator') fail(403, 'scope', 'Identité opérateur requise.');
-        if (await studioRoute(req,res,url,auth,true)) return;
+        const hasArchives=auth.projectIds.some(id=>archives.includes(id));
+        auth=visibleScope(auth,path);
+        if (await studioRoute(req,res,url,auth,true,hasArchives)) return;
         if (method === 'GET' && path === '/api/projects') {
           json(res, 200, { projects: await core.listProjects(auth) });
           return;
@@ -346,16 +382,16 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         }
         fail(401, 'authentication', 'Identité locale requise.');
       }
-      const { actor } = session;
+      const actor=visibleScope(session.actor,path);
       if (path === '/logout' && method === 'POST') {
         sessions.delete(session.key);
         res.setHeader('Set-Cookie', cookieName + '=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
         redirect(res, '/');
         return;
       }
-      if (await studioRoute(req,res,url,actor,false)) return;
+      if (await studioRoute(req,res,url,actor,false,session.actor.projectIds.some(id=>archives.includes(id)))) return;
       if (path === '/login' && method === 'GET') {
-        const [first] = await core.listProjects(actor);
+        const [first] = orderedProjects(await core.listProjects(actor));
         if (!first) fail(404, 'not_found', 'Aucun projet accessible.');
         redirect(res, '/projects/' + first.id);
         return;
@@ -367,7 +403,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
         if (method === 'GET' && path === '/projects/' + project) {
           const projects = await core.listProjects(actor);
           const selected = await core.getProject(actor, project);
-          html(res, 200, projectPage(projects, selected, randomUUID(),actor.accountRole!=='viewer'));
+          html(res, 200, projectPage(projects, selected, randomUUID(),actor.accountRole!=='viewer',await core.repositories.state(actor,project),teamProjects.has(project),await cursorPulls(core.pool,actor,project)));
           return;
         }
         if (method === 'POST' && path === '/projects/' + project + '/missions') {

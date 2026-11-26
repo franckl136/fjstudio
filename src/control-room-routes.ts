@@ -113,6 +113,8 @@ function controls(path: string, m: ControlMission) {
 function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetail>>, canOperate: boolean) {
   const m = detail.mission,
     path = root + '/' + m.id;
+  const coverage=detail.tasks.find(t=>t.task_key==='coverage')?.result?.matches as {criterion:string;covered:boolean;lines:number[]}[]|undefined;
+  const verdict=detail.tasks.find(t=>t.task_key==='synthesis')?.result?.verdict;
   const tasks = detail.tasks
     .map(
       (
@@ -144,6 +146,8 @@ function detailView(root: string, detail: Awaited<ReturnType<typeof controlDetai
     )
     .join('');
   return `<a class="back" href="${e(root)}">← Missions du projet</a><div class="heading"><h1>${e(m.objective)}</h1><span class="badge">${e(labels[m.status])}</span></div>
+    ${verdict && coverage?`<section class="panel"><h2>Résultat de la relecture · ${e(verdict)}</h2>
+      <ul>${coverage.map(c=>`<li>${e(c.criterion)} · ${c.covered?'retrouvé, ligne(s) '+e(c.lines.join(', ')):'absent du document'}</li>`).join('')}</ul></section>`:''}
     <section class="panel"><h2>Contrat de mission</h2><p>${e(m.scope)}</p><p>${e(m.constraints_text)}</p>
     <p>Créée par ${e(m.created_by)} · révision ${m.revision} · budget 0 € · ${m.duration_minutes} min${m.deadline_at ? ' · échéance ' + date(m.deadline_at) : ''}</p>
     ${m.parent_id ? `<p><a href="${root}/${e(m.parent_id)}">Mission d’origine</a></p>` : ''}

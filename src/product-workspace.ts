@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { Operator, ProjectId, Role } from './contracts.ts';
 import { assertProject, transaction } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
+import { cursorPulls } from './cursor-sessions.ts';
 
 export type DeskIdentity = {id: string; projectId: ProjectId; role: Role};
 export type MissionDigest = {id: string; project_id: ProjectId; objective: string; status: string; at: Date; engine: 'control' | 'a1'};
@@ -112,6 +113,9 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
          FROM knowledge_current WHERE project_id=ANY($1::text[])
        UNION ALL SELECT project_id,coalesce(finished_at,created_at),profile,coalesce(verdict,'lab_'||state),NULL,
          '/projects/'||project_id||'/quality/'||id FROM product_lab_runs WHERE project_id=ANY($1::text[])
+       UNION ALL SELECT o.project_id,o.observed_at,p.name,'git_observed',o.observed_by,
+         '/projects/'||o.project_id||'/repository' FROM repository_observations o JOIN projects p ON p.id=o.project_id
+         WHERE o.project_id=ANY($1::text[])
     ) timeline ORDER BY at DESC,href,kind LIMIT 16`,args)).rows;
     const labs = (await client.query<Lab>(`SELECT DISTINCT ON (project_id) project_id,id,profile,state,verdict,created_at
       FROM product_lab_runs WHERE project_id=ANY($1::text[]) ORDER BY project_id,created_at DESC,id DESC`,args)).rows;
@@ -122,8 +126,32 @@ export async function readWorkspace(pool: Pool, actor: Operator, configured: rea
         'SELECT performed_at,outcome,bytes FROM studio_backup_checks ORDER BY performed_at DESC,id DESC LIMIT 1',
       )).rows[0] ?? null : undefined;
     const agents = await desks(client,ids,configured);
-    return { capturedAt, projects, counts, missions, alerts, tasks, events, labs, proposals, agents, backup };
+    const repositories = (await client.query<{project_id:string; local_only:boolean; branch:string|null; local_commit:string|null;
+      observed_at:Date|null; worktree:{staged:number;unstaged:number;untracked:number}|null}>(`
+      SELECT r.project_id,r.remote_url='' AS local_only,o.branch,o.local_commit,o.observed_at,o.worktree
+      FROM project_repositories r LEFT JOIN LATERAL (
+        SELECT branch,local_commit,observed_at,worktree FROM repository_observations WHERE project_id=r.project_id
+        ORDER BY observed_at DESC,recorded_at DESC,id DESC LIMIT 1
+      ) o ON true WHERE r.project_id=ANY($1::text[]) ORDER BY r.project_id`,args)).rows;
+    const cursorSessions=await cursorPulls(client,actor,filter);
+    return { capturedAt, projects, counts, missions, alerts, tasks, events, labs, proposals, agents, backup, repositories, cursorSessions };
   }, true);
 }
 
 export type Workspace = Awaited<ReturnType<typeof readWorkspace>>;
+
+export async function activityWeek(pool:Pool,actor:Operator,filter?:ProjectId) {
+  if(filter) assertProject(actor,filter);
+  return (await pool.query<{day:string; total:number}>(`
+    WITH days AS (
+      SELECT (timezone('Europe/Paris',now())::date - n)::date AS day FROM generate_series(0,6) n
+    ), bounds AS (SELECT min(day)::timestamp AT TIME ZONE 'Europe/Paris' AS since FROM days),
+    activity AS (
+      SELECT at FROM control_events,bounds WHERE project_id=ANY($1::text[]) AND at>=since
+      UNION ALL SELECT at FROM mission_events,bounds WHERE project_id=ANY($1::text[]) AND at>=since
+      UNION ALL SELECT observed_at FROM repository_observations,bounds WHERE project_id=ANY($1::text[]) AND observed_at>=since
+    )
+    SELECT to_char(days.day,'YYYY-MM-DD') AS day,count(activity.at)::int AS total FROM days
+    LEFT JOIN activity ON timezone('Europe/Paris',activity.at)::date=days.day GROUP BY days.day ORDER BY days.day`,
+    [filter?[filter]:actor.projectIds])).rows;
+}

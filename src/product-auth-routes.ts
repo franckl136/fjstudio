@@ -15,15 +15,17 @@ const field=(id:string,label:string,type:string,auto:string,attrs='') =>
 function activationForm() {
   return `<form method="post" action="/enroll">${field('invitation','Code d’activation','password','off')}<button>Commencer l’activation</button></form>`;
 }
-function localActivation(expired=false) {
+const expiredActivation='Cette tentative a expiré ou a été remplacée. Recommencez avec votre clé locale.';
+function localActivation(message='') {
   return layout('Activer le Studio',`<section class="panel login"><h1>Activer admin-local</h1>
-    ${expired?'<p role="alert">Cette tentative a expiré. Recommencez avec votre clé locale.</p>':''}
+    ${message?'<p role="alert">'+e(message)+'</p>':''}
     <p>Dans PowerShell, depuis le dossier du Studio, lancez <code>npm.cmd run --silent access:local</code>.
     Collez la clé affichée ci-dessous. Vous choisirez ensuite votre mot de passe.</p>${activationForm()}</section>`);
 }
-function chooseLocalPassword() {
+function chooseLocalPassword(message='') {
   return layout('Choisir le mot de passe',`<section class="panel login"><h1>Choisir le mot de passe</h1>
     <p>Votre identifiant de connexion est <strong>admin-local</strong>.</p>
+    ${message?'<p role="alert">'+e(message)+'</p>':''}
     <form method="post" action="/enroll/confirm">
     ${field('password','Nouveau mot de passe (14 caractères minimum)','password','new-password','minlength="14" maxlength="256"')}
     <button class="primary">Activer et se connecter</button></form></section>`);
@@ -39,10 +41,10 @@ export function humanLogin(passwordOnly=false) {
 }
 export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:ServerResponse,path:string,actor:Operator|null,
   credentials:readonly Credential[],io:UI) {
-  if (store.localAdminPasswordOnly && !actor && req.method==='GET' && ['/','/login','/enroll/confirm'].includes(path)) {
+  if (store.localAdminPasswordOnly && !actor && req.method==='GET' && ['/','/login','/enroll','/enroll/confirm'].includes(path)) {
     const admin=await store.localAdminSetup(cookie(req,setupCookie));
     if (!admin.enrolled) {
-      io.html(res,200,admin.pending?chooseLocalPassword():localActivation(path==='/enroll/confirm'));
+      io.html(res,200,admin.pending?chooseLocalPassword():localActivation(path==='/enroll/confirm'?expiredActivation:''));
       return true;
     }
     const wantsTotp=new URL(req.url??path,'http://localhost').searchParams.get('totp')==='1';
@@ -57,7 +59,15 @@ export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:Serve
   if(path==='/enroll' && req.method==='POST') {
     const input=await io.body(req,'form');
     const principal=credentials.find(c=>c.id==='operator-local' && c.kind==='operator');
-    const result=await store.begin(String(input.invitation??''),principal?.kind==='operator'?principal:undefined);
+    let result;
+    try {
+      result=await store.begin(String(input.invitation??'').trim(),principal?.kind==='operator'?principal:undefined);
+    } catch(error) {
+      if(!(error instanceof DomainError) || error.code!=='identity' || !store.localAdminPasswordOnly) throw error;
+      if((await store.localAdminSetup(cookie(req,setupCookie))).enrolled) throw error;
+      io.html(res,401,localActivation('Clé d’activation non reconnue. Copiez uniquement la clé affichée par la commande.'));
+      return true;
+    }
     res.setHeader('Set-Cookie',set(setupCookie,result.ticket,600));
     if(result.secret===null) {
       io.redirect(res,'/enroll/confirm');return true;
@@ -72,11 +82,18 @@ export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:Serve
   if(path==='/enroll/confirm' && req.method==='POST') {
     const input=await io.body(req,'form');
     const ticket=cookie(req,setupCookie);
-    if(store.localAdminPasswordOnly) {
-      const admin=await store.localAdminSetup(ticket);
-      if(!admin.enrolled && !admin.pending) { io.html(res,410,localActivation(true));return true; }
+    const admin=store.localAdminPasswordOnly?await store.localAdminSetup(ticket):null;
+    if(admin && !admin.enrolled && !admin.pending) { io.html(res,410,localActivation(expiredActivation));return true; }
+    let session;
+    try {
+      session=await store.finish(ticket,String(input.password??''),String(input.otp??''));
+    } catch(error) {
+      if(!admin?.pending || !(error instanceof DomainError)) throw error;
+      if(error.code==='identity') io.html(res,410,localActivation(expiredActivation));
+      else if(error.code==='password') io.html(res,400,chooseLocalPassword(error.message));
+      else throw error;
+      return true;
     }
-    const session=await store.finish(ticket,String(input.password??''),String(input.otp??''));
     res.setHeader('Set-Cookie',[set(setupCookie,'',0),set(humanCookie,session,28800)]);io.redirect(res,'/');return true;
   }
   if(path==='/logout' && req.method==='POST') {

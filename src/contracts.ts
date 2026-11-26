@@ -6,7 +6,7 @@ export type Role = 'preparer' | 'verifier';
 export type FixtureId = 'nominal' | 'incorrect';
 export type JsonObject = Record<string, unknown>;
 export type Operator = { id: string; accountRole?: HumanRole; projectIds: readonly ProjectId[] };
-export type Runner = { id: string; projectId: ProjectId; role: Role };
+export type Runner = { id: string; projectId: ProjectId; role: Role; engine?: 'control' };
 export type Credential = { token: string } & (
   | ({ kind: 'operator' } & Operator)
   | ({ kind: 'runner' } & Runner)

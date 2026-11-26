@@ -46,7 +46,7 @@ function policies(): RepositoryPolicy[] {
   for (const item of [builtin, ...extra]) {
     if (!item || !isProjectId(item.project) || typeof item.key !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(item.key) ||
         typeof item.directory !== 'string' || !isAbsolute(item.directory) || /^(?:\\\\|\/\/)/.test(item.directory) ||
-        typeof item.remote !== 'string' || !/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\.git$/.test(item.remote) ||
+        typeof item.remote !== 'string' || (item.remote !== '' && !/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\.git$/.test(item.remote)) ||
         result.some(p => p.key === item.key)) configurationError();
     result.push({ project: item.project, key: item.key, directory: resolve(item.directory), remote: item.remote });
   }
@@ -95,6 +95,7 @@ async function sourceFile(gitDir: string, name: string, optional = false) {
 async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: string): Promise<LocalState & {
   observed_at: Date; remote_state: RemoteState | null;
 }> {
+  if (fetch && !policy.remote) throw new DomainError(403,'local_repository','Ce dépôt est relié en lecture locale uniquement.');
   if (reference !== undefined && !branchName(reference)) {
     throw new DomainError(400,'git_branch','Nom de branche non pris en charge.');
   }
@@ -139,9 +140,11 @@ async function inspect(policy: RepositoryPolicy, fetch: boolean, reference?: str
       });
       return stdout;
     }
-    const config = await sourceFile(common,'config');
-    const urls = await command(['config','--no-includes','--file',config!,'--get-all','remote.origin.url']);
-    if (urls.trimEnd() !== policy.remote) configurationError();
+    if (policy.remote) {
+      const config = await sourceFile(common,'config');
+      const urls = await command(['config','--no-includes','--file',config!,'--get-all','remote.origin.url']);
+      if (urls.trimEnd() !== policy.remote) configurationError();
+    }
     const headFile = await sourceFile(gitDir,'HEAD');
     const head = (await readFile(headFile!,'utf8')).trim();
     const branch = head.startsWith('ref: refs/heads/') ? head.slice('ref: refs/heads/'.length) : null;
@@ -232,7 +235,7 @@ export class Repositories {
 
   async state(actor: Operator, project: ProjectId) {
     assertProject(actor,project);
-    const available = policies().filter(p=>p.project===project).map(p=>({key:p.key,remote:p.remote}));
+    const available = policies().filter(p=>p.project===project).map(p=>({key:p.key,remote:p.remote,directory:p.directory}));
     const target = (await this.pool.query<{ repository_key:string;remote_url:string; registered_by:string;registered_at:Date }>(
       'SELECT repository_key,remote_url,registered_by,registered_at FROM project_repositories WHERE project_id=$1',[project])).rows[0] ?? null;
     const observations=(await this.pool.query<RepositoryObservation>('SELECT * FROM repository_observations WHERE project_id=$1 ORDER BY observed_at DESC,recorded_at DESC,id DESC LIMIT 20',[project])).rows;

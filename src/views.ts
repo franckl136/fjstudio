@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { CursorPull } from './cursor-sessions.ts';
 import type { Core } from './core.ts';
 import { origins } from './knowledge.ts';
 import { missionQuality, checkLabels } from './quality.ts';
@@ -49,11 +50,13 @@ export function e(value: unknown): string {
   })[char]!);
 }
 
+const studioTime = new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',day:'2-digit',month:'short',year:'numeric',
+  hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'});
 export function date(value: unknown): string {
   if (!value) return '—';
   const parsed = new Date(String(value));
   if (Number.isNaN(parsed.getTime())) return e(value);
-  return `<time datetime="${parsed.toISOString()}">${e(parsed.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC'))}</time>`;
+  return `<time datetime="${parsed.toISOString()}">${e(studioTime.format(parsed))}</time>`;
 }
 
 function label(value: string): string {
@@ -68,6 +71,11 @@ function pretty(value: unknown): string {
   return `<pre>${e(JSON.stringify(value, null, 2))}</pre>`;
 }
 
+const frenchProjectNames=new Intl.Collator('fr',{sensitivity:'base',numeric:true});
+export function orderedProjects<T extends {id:string;name:string}>(projects:readonly T[]) {
+  return [...projects].sort((a,b)=>frenchProjectNames.compare(a.name,b.name) || (a.id<b.id?-1:a.id>b.id?1:0));
+}
+
 export function layout(
   title: string,
   content: string,
@@ -76,7 +84,8 @@ export function layout(
   authenticated = false,
   activeModule = '',
 ): string {
-  const current = projects.find(project => project.id === selected) ?? projects[0];
+  const menu = orderedProjects(projects);
+  const current = menu.find(project => project.id === selected) ?? menu[0];
   const navigation: [string,string,string,string][] = [
     ['workspace','Command Center','/workspace','▦'],
     ['office','Agent Office','/office','▧'],
@@ -112,7 +121,7 @@ export function layout(
     <h2>Espaces</h2>
     ${navigation.map(([key,name,path,symbol]) => `<a class="workspace-link" href="${e(path)}"${activeModule === key || (!activeModule && title === name) ? ' aria-current="page"' : ''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('')}
     ${projects.length ? '<h2 class="project-label">Projets</h2>' : ''}
-    ${projects.map(project => `<a href="/projects/${e(project.id)}"${selected === project.id ? ' class="selected-project"' : ''}>
+    ${menu.map(project => `<a href="/projects/${e(project.id)}"${selected === project.id ? ' class="selected-project"' : ''}>
       <span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>${e(project.name)}
     </a>`).join('')}
   </nav>` : ''}
@@ -140,7 +149,8 @@ export function errorPage(message: string): string {
     <p role="alert">${e(message)}</p><a href="/">Retour au Studio</a></section>`);
 }
 
-export function projectPage(projects: Projects, project: Project, commandKey: string, canOperate = true): string {
+export function projectPage(projects: Projects, project: Project, commandKey: string, canOperate = true,
+  git?: Awaited<ReturnType<Core['repositories']['state']>>,team=false,cursor:CursorPull[]=[]): string {
   const missionList = project.missions.length > 0
     ? `<ul class="mission-list">${project.missions.map(mission => `<li>
         <a href="/projects/${e(project.id)}/missions/${e(mission.id)}">
@@ -153,6 +163,12 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
   return layout(project.name, `
   <div class="heading"><div><h1>${e(project.name)}</h1></div>
     <a class="button" href="/projects/${e(project.id)}/settings">Profil du projet</a></div>
+  ${git?.target?`<section class="panel project-signal"><div><h2>Dernier relevé Git</h2>
+    ${git.observations[0]?`<strong class="branch-name">${e(git.observations[0].branch??'HEAD détachée')}</strong>
+    <p><code>${e(git.observations[0].local_commit.slice(0,8))}</code> · ${date(git.observations[0].observed_at)}</p>
+    <div class="git-counts"><span><b>${git.observations[0].worktree.staged}</b> indexé(s)</span><span><b>${git.observations[0].worktree.unstaged}</b> modifié(s)</span><span><b>${git.observations[0].worktree.untracked}</b> non suivi(s)</span></div>`:'<p>Aucun relevé enregistré.</p>'}</div>
+    <div class="actions"><a class="button" href="/projects/${e(project.id)}/repository">Ouvrir le relevé</a>
+    <a class="button" href="/workspace?project=${e(project.id)}">Tableau de bord du projet</a></div></section>`:''}
   <nav class="actions project-tools" aria-label="Outils du projet">
     <a class="button" href="/projects/${e(project.id)}/knowledge">Project Intelligence · Connaissances</a>
     <a class="button" href="/projects/${e(project.id)}/repository">Dépôt et versions</a>
@@ -160,11 +176,22 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
     <a class="button" href="/projects/${e(project.id)}/control">Missions et agents</a>
     <a class="button" href="/projects/${e(project.id)}/quality">Quality Lab</a>
     <a class="button" href="/projects/${e(project.id)}/lab">App Lab</a></nav>
+  ${cursor.length?`<section class="panel cursor-project"><h2>Sessions Cursor du projet</h2>
+    <p>${new Set(cursor.map(r=>r.agent_id)).size} sessions reliées par les pull requests GitHub.</p>
+    <a class="button" href="/office?project=${e(project.id)}#cursor">Retrouver les sessions et les PR →</a></section>`:''}
+  ${team?`<section class="panel team-brief"><h2>Le binôme local du Studio</h2>
+    <p>Le documentaliste indexe les sections. Le vérificateur retrouve tes critères dans le document, puis contrôle les deux preuves.</p>
+    <div class="actions"><a href="/office?project=${e(project.id)}">Voir le binôme au bureau</a>
+    <a href="/projects/${e(project.id)}/control">Confier ton propre document</a></div>
+    ${canOperate && git?.observations[0]?`<form method="post" action="/projects/${e(project.id)}/team-brief">
+      <input type="hidden" name="commandKey" value="${e(commandKey)}"><input type="hidden" name="observation" value="${e(git.observations[0].id)}">
+      <label>Mission sur le relevé du ${date(git.observations[0].observed_at)}<select name="kind"><option value="handoff">Préparer la passation Git</option><option value="clean">Vérifier la propreté du dépôt</option></select></label>
+      <button class="primary">Préparer le brouillon</button></form>`:''}</section>`:''}
   <div class="overview">
     <section class="panel"><h2>Contexte du projet</h2>
       <p>${e(project.context.description)}</p>${project.context.classification === 'synthetic' ? '<span class="badge">Données synthétiques</span>' : ''}
     </section>
-    ${canOperate ? `<section class="panel"><h2>Lancer une mission A1</h2>
+    ${canOperate && !team ? `<section class="panel"><h2>Lancer une mission A1</h2>
       <form action="/projects/${e(project.id)}/missions" method="post">
         <input type="hidden" name="commandKey" value="${e(commandKey)}">
         <label for="fixtureId">Jeu de données synthétique</label>
@@ -176,7 +203,7 @@ export function projectPage(projects: Projects, project: Project, commandKey: st
       </form>
     </section>` : ''}
   </div>
-  <section class="panel"><h2>Missions</h2>${missionList}</section>`, projects, project.id, true);
+  ${team && !project.missions.length?'':`<section class="panel"><h2>Missions A1</h2>${missionList}</section>`}`, projects, project.id, true);
 }
 
 export function missionPage(projects: Projects, mission: Mission, canOperate = true): string {

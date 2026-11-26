@@ -92,4 +92,11 @@ test('G4.1 · origine autorisée, état local isolé, rapport de mission figé e
   await git('remote','set-url','origin','https://example.invalid/other.git');
   await assert.rejects(registry.observe(owner,'b','fetch','main'),{code:'repository_configuration'});
   assert.equal((await registry.state(owner,'b')).observations.length,2);
+  // A local-only project can be observed with no remote. The same registration never grants fetch.
+  await git('remote','remove','origin');
+  process.env.STUDIO_GIT_REPOSITORIES=JSON.stringify([{project:'a',key:'local-fixture',directory,remote:''}]);
+  await registry.register(foreign,'a','local-fixture');
+  assert.equal((await registry.observe(foreign,'a','local')).local_commit,head);
+  await assert.rejects(registry.observe(foreign,'a','fetch'),{code:'local_repository'});
+  await assert.rejects(registry.observe(owner,'a','local'),denied);
 });
