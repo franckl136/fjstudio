@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 const shaPattern = /^[0-9a-f]{40}$/;
 export type LabSource = { project: ProjectId; key: string; directory: string; entry: string; ref: string };
-export type LabInventory = { manifests: string[]; dependencies: number | null; devDependencies: number | null };
+export type LabInventory = { manifests: string[]; dependencies: number | null; devDependencies: number | null; directories?:string[] };
 export type LabSnapshot = { inventory: LabInventory; commit: string; entry: string; bytes: Buffer; sha256: string };
 const badConfig = () => new DomainError(409, 'lab_source', 'La source Git autorisée doit être vérifiée sur le poste.');
 const noSnapshot = () => new DomainError(409, 'lab_snapshot', 'Révision ou fichier indisponible dans cette source.');
@@ -89,6 +89,10 @@ export async function readLabSnapshot(source: LabSource, requested?: string): Pr
     const entries = (await call('ls-tree','-z',commit,'--',...manifests)).toString('utf8').split('\0')
       .map(line => /^100644 blob ([0-9a-f]{40})\t([^\0]+)$/.exec(line)).filter(m => m !== null && manifests.includes(m[2]));
     const inventory: LabInventory = { manifests: entries.map(m => m![2]), dependencies: null, devDependencies: null };
+    const knownDirectories=['apps','assets','docs','fixtures','migrations','packages','prisma','public','scripts','src','supabase','test','tests'];
+    const directories=(await call('ls-tree','-d','--name-only','-z',commit,'--',...knownDirectories)).toString('utf8').split('\0')
+      .filter(name=>knownDirectories.includes(name));
+    inventory.directories=directories;
     const pkg = entries.find(m => m![2] === 'package.json');
     if (pkg && Number((await call('cat-file','-s',pkg[1])).toString()) <= 65536) {
       try {

@@ -45,7 +45,8 @@ function showOverview(project:ProjectId, page:'lab'|'quality', data:LabState, wr
     const compatible = source.entry.endsWith('.ts') ? ['typescript'] as const : ['structure','visual'] as const;
     const options = compatible.filter(profile => !isLab || profile === 'visual').map(profile =>
       option(source.key + ':' + profile, source.entry + ' · ' + labProfiles[profile].title));
-    return options.length ? '<optgroup label="' + e(source.key) + '">' + options.join('') + '</optgroup>' : '';
+    const origin=['studio-sample','studio-types'].includes(source.key)?'Exemple synthétique du Studio':'Source autorisée du projet';
+    return options.length ? '<optgroup label="' + e(origin+' · '+source.key) + '">' + options.join('') + '</optgroup>' : '';
   }).join('');
   const visible = data.runs.filter(r=>!isLab || r.profile==='visual');
   const history = visible.map(r=>`<li><a href="${base}/${e(r.id)}"><strong>${e(labProfiles[r.profile].title)} · ${e(r.source_key)}</strong>
@@ -67,6 +68,9 @@ function showOverview(project:ProjectId, page:'lab'|'quality', data:LabState, wr
       '</select></label><button>Comparer</button></fieldset></form>';
   }).join('');
   const content = `<header class="heading"><div><h1>${heading}</h1><p>${isLab?'Prévisualiser un document HTML versionné dans Chromium isolé.':'Exécuter un profil, examiner son verdict et comparer deux révisions.'}</p></div></header>
+    <nav class="actions" aria-label="Outils associés"><a href="/projects/${e(project)}/architecture">Architecture du projet</a><a href="/projects/${e(project)}/automations">Automatisations</a>
+    ${!isLab?`<a href="/projects/${e(project)}/quality/profiles">Profils de qualification</a><a href="/projects/${e(project)}/quality/schema">Auditer les métadonnées d’une base du projet</a>`:''}</nav>
+    ${isLab?`<section class="panel"><h2>Environnement de preview</h2><p>Le worker lit le fichier d’entrée au commit autorisé. Le rendu Chromium s’exécute dans un conteneur local isolé et dépose sa capture dans le rapport.</p><ul>${data.sources.filter(s=>s.entry.endsWith('.html')).map(s=>`<li><strong>${e(s.key==='studio-sample'?'Exemple synthétique du Studio':'Source autorisée du projet')}</strong> · <code>${e(s.entry)}</code> · ${e(s.ref)}</li>`).join('')}</ul></section>`:''}
     ${!isLab && project==='a'?'<p><a href="/projects/a/quality/campaigns">Campagnes de tests du Studio</a></p>':''}
     ${writable?`<section class="panel"><h2>${isLab?'Nouvelle preview':'Nouvelle qualification'}</h2>
     <form method="post" action="${base}"><input type="hidden" name="commandKey" value="${randomUUID()}">
@@ -75,7 +79,7 @@ function showOverview(project:ProjectId, page:'lab'|'quality', data:LabState, wr
     <button>${isLab?'Préparer la preview':'Lancer la qualification'}</button></form></section>`:''}
     <section class="panel"><h2>Passages du projet</h2>${history?'<ul class="mission-list">'+history+'</ul>':'<p>Aucun passage enregistré pour ce profil.</p>'}</section>
     ${comparisons?'<section class="panel"><h2>Comparer deux passages</h2>'+comparisons+'</section>':''}
-    <section class="panel"><h2>Déclenchement automatique</h2>
+    <section class="panel" id="regles-lab"><h2>Déclenchement automatique</h2>
     ${rules?'<ul class="history">'+rules+'</ul>':'<p>Aucune règle active pour ce projet.</p>'}
     ${writable?`<details><summary>Configurer une règle</summary><form method="post" action="${base}/rules">
     <label>Source et profil<select name="selection" required>${selections}</select></label>
@@ -92,6 +96,9 @@ function showResult(base: string, project: ProjectId, row: LabRun, data: LabStat
     <span class="badge">${e(row.verdict??states[row.state])}</span></header>
     <section class="panel"><h2>Exécution</h2><p>Demandée par ${e(row.actor_id)} · ${date(row.created_at)} · ${e(triggers[row.trigger_kind])}</p>
     <p>Manifestes détectés · ${e(row.inventory.manifests.join(', ') || 'aucun des formats reconnus')}. Dépendances déclarées · ${row.inventory.dependencies ?? 'indéterminées'} (développement · ${row.inventory.devDependencies ?? 'indéterminées'}).</p>
+    <p>Entrée <code>${e(row.entry_path)}</code> · ${['studio-sample','studio-types'].includes(row.source_key)?'exemple synthétique du Studio':'source autorisée du projet'}.</p>
+    ${row.inventory.directories?.length?`<p>Dossiers reconnus au commit · ${row.inventory.directories.map(n=>'<code>'+e(n)+'/</code>').join(' · ')}</p>`:''}
+    ${row.started_at&&row.finished_at?`<p>Durée observée · ${Math.max(0,Math.round((row.finished_at.getTime()-row.started_at.getTime())/1000))} s</p>`:''}
     <p>Commit <code>${e(row.commit_sha)}</code> · profil ${e(row.profile_version)}</p>
     ${row.started_at?'<p>Début '+date(row.started_at)+' · runner '+e(row.worker)+'</p>':''}
     ${row.finished_at?'<p>Fin '+date(row.finished_at)+'</p>':'<p>Le service local traite les travaux de la file. <a href="'+base+'/'+e(row.id)+'">Actualiser</a></p>'}
@@ -103,6 +110,12 @@ function showResult(base: string, project: ProjectId, row: LabRun, data: LabStat
 }
 
 export async function productLabRoute(pool:Pool, req:IncomingMessage, res:ServerResponse, url:URL, actor:Operator, api:boolean, io:HttpTools): Promise<boolean> {
+  const schema=/^\/projects\/([a-z][a-z0-9-]*)\/quality\/schema$/.exec(api?url.pathname.slice(4):url.pathname);
+  if(schema&&req.method==='GET') {
+    const data=await schemaQuality(pool,actor,schema[1],url.searchParams);
+    if(api)io.json(res,200,data);else io.html(res,200,await schemaQualityPage(pool,actor,schema[1],data));
+    return true;
+  }
   const path = api ? url.pathname.slice(4) : url.pathname;
   const matched = /^\/projects\/([^/]+)\/(lab|quality)(?:\/([^/]+)(?:\/(capture))?)?$/.exec(path);
   if (!matched) return false;
@@ -146,3 +159,4 @@ export async function productLabRoute(pool:Pool, req:IncomingMessage, res:Server
   } else throw notFound();
   return true;
 }
+import { schemaQuality,schemaQualityPage } from './schema-quality.ts';

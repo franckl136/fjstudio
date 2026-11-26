@@ -69,7 +69,7 @@ test('App Lab · lecture bornée d’une révision Git et inventaire des manifes
   const target=labSources('a').find(s=>s.key==='atelier')!;
   const snapshot=await readLabSnapshot(target);
   assert.equal(snapshot.commit,second);assert.equal(snapshot.entry,entry);
-  assert.deepEqual(snapshot.inventory,{manifests:['package.json'],dependencies:1,devDependencies:0});
+  assert.deepEqual(snapshot.inventory,{manifests:['package.json'],dependencies:1,devDependencies:0,directories:[]});
   assert.equal((await readLabSnapshot(target,first)).commit,first);
   const unreachable=revision('<html>Version indépendante</html>');
   await assert.rejects(readLabSnapshot(target,unreachable),{code:'lab_snapshot'});
