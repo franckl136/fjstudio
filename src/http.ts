@@ -23,7 +23,7 @@ import { HumanAccess, identityKey } from './product-auth.ts';
 import { cookie, humanCookie, humanLogin, humanRoute } from './product-auth-routes.ts';
 import { workspaceRoute } from './product-workspace-routes.ts';
 import { projectTeamBrief } from './project-team-brief.ts';
-import { controlRoomRoute,controlRunnerRoute } from './control-room-routes.ts';
+import { controlRoomRoute,controlRunnerRoute,localDraftsEnabled } from './control-room-routes.ts';
 import { productLabRoute } from './product-lab-routes.ts';
 import { visibleAgents } from './agents.ts';
 import { qualityProfilesRoute } from './quality-profiles-routes.ts';
@@ -41,6 +41,7 @@ const cookieName = 'a1_operator';
 const moduleFiles:Record<string,[string,string]>={
   '/activity-assets/journal.js':['activity-journal.js','text/javascript; charset=utf-8'],
   '/activity-assets/journal.css':['activity-journal.css','text/css; charset=utf-8'],
+  '/form-assets/guard.js':['form-guard.js','text/javascript; charset=utf-8'],
   '/form-assets/drafts.js':['form-drafts.js','text/javascript; charset=utf-8'],
   '/control-assets/brief.js':['control-brief.js','text/javascript; charset=utf-8'],
   '/database-assets/erd.js':['explorer/erd.js','text/javascript; charset=utf-8'],
@@ -181,6 +182,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
     const draftAccess=!api && /^\/projects\/([a-z0-9-]+)\/draft-access\/(mission-new|mission-edit-[a-f0-9-]{36})$/.exec(url.pathname);
     if(draftAccess){
       if(req.method!=='POST')fail(405,'method','Méthode indisponible.');
+      if(!localDraftsEnabled())fail(404,'not_found','Fonction indisponible.');
       const [,project,form]=draftAccess;
       assertProject(actor,project);
       const fields=await body(req,'json');exactKeys(fields,'account');

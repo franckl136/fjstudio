@@ -77,7 +77,7 @@ function protectForm(form) {
     if(form.elements.revision)form.elements.revision.value=data.revision;
   }
   const initial=snapshot();
-  let last=initial, id=crypto.randomUUID(), revision=0, pending=false, conflict=false, timer, submitting=false;
+  let last=initial, id=crypto.randomUUID(), revision=0, pending=false, conflict=false, timer;
   let queue=Promise.resolve();
   function run(action) {
     clearTimeout(timer);
@@ -105,7 +105,6 @@ function protectForm(form) {
     inform(pending?'Modification en cours…':'Enregistré sur cet appareil.');
   }
   function changed() {
-    if(submitting)return;
     pending=snapshot()!==last;
     clearTimeout(timer);
     if(!pending){inform(revision?'Enregistré sur cet appareil.':'');return;}
@@ -191,81 +190,15 @@ function protectForm(form) {
     await save();await catalog();
   }).catch(failure));
 
-  // Native unload covers refresh, browser close and history navigation while a change has not reached storage.
-  window.addEventListener('beforeunload',event=>{
-    if(pending){event.preventDefault();event.returnValue='';}
-  });
-  window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
-
-  function guard(leave) {
-    if(!pending){leave();return;}
-    if(document.querySelector('dialog[data-draft-dialog][open]'))return;
-    const box=document.createElement('dialog');
-    box.dataset.draftDialog='';box.setAttribute('aria-label','Saisie en cours');
-    const title=document.createElement('h2');title.textContent='Saisie en cours';
-    const message=document.createElement('p');message.textContent='Conservez le brouillon pour le retrouver sur cet appareil.';
-    const stay=button('Rester sur le formulaire',async()=>box.close());
-    const keep=button('Enregistrer et continuer',async()=>{
-      try{await save();box.close();leave();}catch(error){message.textContent='Sauvegarde impossible. Restez pour réessayer ou choisissez explicitement d’abandonner.';throw error;}
-    });
-    const abandon=button('Abandonner et quitter',async()=>{await removeCurrent();box.close();leave();});
-    const actions=document.createElement('div');actions.className='actions';actions.append(stay,keep,abandon);
-    box.append(title,message,actions);box.addEventListener('close',()=>box.remove(),{once:true});
-    document.body.append(box);box.showModal();stay.focus();
-  }
-  document.addEventListener('click',event=>{
-    const link=event.target.closest?.('a[href]');
-    if(!pending || !link || event.defaultPrevented || event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
-      || link.hasAttribute('download') || (link.target && link.target!=='_self'))return;
-    const url=new URL(link.href);
-    if(url.href.split('#')[0]===location.href.split('#')[0] && url.hash)return;
-    event.preventDefault();guard(()=>location.assign(url.href));
-  });
-  let approvedSubmit=false;
-  document.addEventListener('submit',event=>{
-    if(!pending || event.target===form || event.defaultPrevented || approvedSubmit)return;
-    event.preventDefault();
-    guard(()=>{approvedSubmit=true;try{event.target.requestSubmit(event.submitter);}finally{approvedSubmit=false;}});
-  });
-  form.addEventListener('submit',event=>{
-    event.preventDefault();
-    if(submitting)return;
-    submitting=true;form.inert=true;form.querySelector('button[type=submit],button:not([type])').disabled=true;
-    run(async()=>{
-      const errorMessage=form.querySelector('[data-draft-submit-error]');
-      errorMessage.hidden=true;errorMessage.replaceChildren();
-      let destination;
-      try{
-        // Keep the idempotency key during retries, even when the reply to a successful submission is lost.
-        const fields=new URLSearchParams(new FormData(form));
-        const response=await fetch(form.action,{method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body:fields});
-        if(!response.ok){
-          const dom=new DOMParser().parseFromString(await response.text(),'text/html');
-          const message=dom.querySelector('main p')?.textContent?.trim();
-          throw Error(message||'Vérifiez les champs, la révision et la session.');
-        }
-        const result=await response.json();
-        if(typeof result.id!=='string' || !/^[a-f0-9-]{36}$/.test(result.id))throw Error('mission');
-        destination=form.action.split('/control')[0]+'/control/'+result.id;pending=false;
-        if(revision){
-          const {scope}=await access(form);
-          await changeRow(scope,id,revision,null);
-        }
-        location.assign(destination);
-      }catch(error){
-        errorMessage.hidden=false;
-        if(destination){
-          const link=document.createElement('a');link.href=destination;link.textContent='Ouvrir la mission enregistrée';
-          errorMessage.append('La mission est enregistrée. Le brouillon local n’a pas pu être retiré. ',link);
-        }else{
-          errorMessage.textContent='Mission non confirmée. '+error.message;
-          if(pending)timer=setTimeout(()=>run(save).catch(failure),250);
-        }
-      }finally{
-        submitting=false;form.inert=false;form.querySelector('button[type=submit],button:not([type])').disabled=false;
-      }
-    });
-  });
+  // Local persistence is an optional extension of the form guard. Each operation waits for an in-flight autosave.
+  form.dispatchEvent(new CustomEvent('draft-persistence',{detail:{
+    pending:()=>pending,
+    keep:()=>run(save).catch(error=>{failure(error);throw error;}),
+    abandon:()=>run(removeCurrent).catch(error=>{failure(error);throw error;}),
+    pause:()=>run(async()=>{}),
+    submitted:()=>run(removeCurrent),
+    retryPending:()=>{if(pending)timer=setTimeout(()=>run(save).catch(failure),250);},
+  }}));
   run(catalog).catch(failure);
 }
 for(const form of document.querySelectorAll('form[data-draft-access]'))protectForm(form);

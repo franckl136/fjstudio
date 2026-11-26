@@ -80,12 +80,17 @@ function specificFields(purpose:keyof typeof missionPurposes, details:Record<str
   return Object.entries(purposeFields[purpose]).map(([key,label])=>
     `<label>${e(label)} <small>(facultatif)</small><input name="${e(key)}" maxlength="360" value="${e(details[key]??'')}"></label>`).join('');
 }
+export const localDraftsEnabled=()=>process.env.STUDIO_LOCAL_DRAFTS==='1';
+function formScripts() {
+  return '<script src="/form-assets/guard.js" defer></script>'+(localDraftsEnabled()?'<script src="/form-assets/drafts.js" defer></script>':'');
+}
 function briefForm(path: string, account:string, m?: ControlMission,requested?:string|null,seed?:ReturnType<typeof resumeBrief>) {
   const purpose=(m?.purpose??requested??'documentation') as keyof typeof missionPurposes;
   if(!Object.hasOwn(missionPurposes,purpose)) invalid('Finalité inconnue.');
   const root=m?'/projects/'+m.project_id:path.slice(0,-'/control'.length);
   const access=root+'/draft-access/'+(m?'mission-edit-'+m.id:'mission-new');
-  return `<noscript><p>La sauvegarde sur cet appareil et la protection de sortie nécessitent JavaScript.</p></noscript><div data-draft-tools hidden><p role="status" aria-live="polite" data-draft-status></p><div data-draft-list></div><div class="actions"><button type="button" data-draft-retry hidden>Réessayer la sauvegarde</button><button type="button" data-draft-copy hidden>Conserver une copie séparée</button><button type="button" data-draft-discard hidden>Abandonner ce brouillon local</button></div></div><form autocomplete="off" method="post" action="${e(path)}" data-draft-access="${e(access)}" data-draft-account="${e(account)}" data-draft-fields="${e(fieldNames.join(' '))}">${hidden('commandKey', randomUUID())}${hidden('formAccount',account)}${m ? hidden('revision', m.revision) : ''}
+  const tools=localDraftsEnabled()?`<div data-draft-tools hidden><p role="status" aria-live="polite" data-draft-status></p><div data-draft-list></div><div class="actions"><button type="button" data-draft-retry hidden>Réessayer la sauvegarde</button><button type="button" data-draft-copy hidden>Conserver une copie séparée</button><button type="button" data-draft-discard hidden>Abandonner ce brouillon local</button></div></div>`:'';
+  return `<noscript><p>Activez JavaScript pour être averti avant de quitter une saisie.</p></noscript>${tools}<form data-form-guard autocomplete="off" method="post" action="${e(path)}" ${localDraftsEnabled()?'data-draft-access="'+e(access)+'" data-draft-account="'+e(account)+'"':''} data-draft-fields="${e(fieldNames.join(' '))}">${hidden('commandKey', randomUUID())}${hidden('formAccount',account)}${m ? hidden('revision', m.revision) : ''}
     ${hidden('purpose',purpose)}<p><strong data-purpose-title>${e(missionPurposes[purpose])}</strong> · Relecture des pièces fournies par les agents documentaires locaux.</p>
     <label>Objectif<input required maxlength="240" name="objective" value="${e(m?.objective ?? seed?.objective ?? '')}"></label>
     <label>Périmètre<textarea required maxlength="1200" name="scope">${e(m?.scope ?? seed?.scope ?? '')}</textarea></label>
@@ -220,7 +225,7 @@ export async function controlRoomRoute(
           200,
           layout(
             detail.mission.objective,
-            detailView(root, actor.id, detail, actor.accountRole !== 'viewer')+'<script src="/form-assets/drafts.js" defer></script>',
+            detailView(root, actor.id, detail, actor.accountRole !== 'viewer')+formScripts(),
             await projects(pool, actor),
             project,
             true,
@@ -250,7 +255,7 @@ export async function controlRoomRoute(
           ${seed?'<p>Le dossier reprend les indices du code local. Complétez le compte rendu avant la revue.</p>':''}${briefForm(root,actor.id,undefined,selected,seed)}
           ${(Object.keys(missionPurposes) as (keyof typeof missionPurposes)[]).map(key=>
             `<template data-purpose="${key}" data-source="${e(sourceLabels[key])}">${specificFields(key)}</template>`).join('')}
-          <script src="/control-assets/brief.js" defer></script><script src="/form-assets/drafts.js" defer></script></section>`;
+          <script src="/control-assets/brief.js" defer></script>${formScripts()}</section>`;
         const panel = `<header class="product-heading"><h1>Agent Control Room</h1>${composer?'<nav class="actions" aria-label="Accès aux missions"><a href="#brief">Créer une mission</a><a href="#missions">Missions du projet</a></nav>':''}</header>
           <section class="panel" id="missions"><h2>Missions de revue documentaire</h2>${items ? '<ul class="mission-list">' + items + '</ul>' : '<p>Aucune mission de revue pour ce projet.</p>'}</section>
           ${composer}

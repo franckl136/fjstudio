@@ -18,9 +18,12 @@ assert.equal(url.pathname,'/fjstudio_a1');
 const name='fjstudio_a1_test_'+randomUUID().replaceAll('-','');
 const maintenance=createPool(url.href), key=randomBytes(32);
 const temp=await realpath(tmpdir());
+const captures=await mkdtemp(join(temp,'fjstudio-recette-saisies-'));
 const profile=await mkdtemp(join(temp,'fjstudio-draft-browser-'));
 const principal={id:'operator-local',kind:'operator',token:randomUUID(),projectIds:['a','b']};
 let db,server,context,page,origin,created=false;
+// Both modes run on this script's private HTTP server and disposable database.
+delete process.env.STUDIO_LOCAL_DRAFTS;
 async function openBrowser(){
   context=await chromium.launchPersistentContext(profile,{channel:process.platform==='win32'?'chrome':undefined,executablePath:process.env.STUDIO_QA_BROWSER,
     headless:true,locale:'fr-FR',viewport:{width:1440,height:900}});
@@ -33,11 +36,63 @@ async function authenticate(session) {
 const pageA=()=>page.goto(origin+'/projects/a/control');
 const switchProject=project=>page.locator('.sidebar a[data-project-id="'+project+'"]').click();
 const status=(p=page)=>p.locator('[data-draft-status]');
-const field=(name,p=page)=>p.locator('form[data-draft-access] [name="'+name+'"]');
+const field=(name,p=page)=>p.locator('form[data-form-guard] [name="'+name+'"]');
 async function saved(p=page){await p.waitForFunction(()=>document.querySelector('[data-draft-status]')?.textContent==='Enregistré sur cet appareil.');}
 async function resume(p=page){
   await p.getByRole('button',{name:'Reprendre',exact:true}).click();
   await p.waitForFunction(()=>document.querySelector('[data-draft-status]').textContent.startsWith('Brouillon récupéré.'));
+}
+async function checkGuardOnly(){
+  // Storage is deliberately unavailable throughout this page, including initialization.
+  await page.addInitScript(()=>{
+    Object.defineProperty(window,'indexedDB',{get(){throw Error('Stockage refusé pour la recette.');}});
+  });
+  await pageA();await page.waitForLoadState('networkidle');
+  assert.equal(await page.locator('script[src="/form-assets/drafts.js"]').count(),0);
+  const disabledKey=await page.request.post(origin+'/projects/a/draft-access/mission-new',{headers:{Origin:origin},data:{account:'admin-local'}});
+  assert.equal(disabledKey.status(),404);
+  await switchProject('b');await page.waitForURL('**/projects/b/control');
+  await switchProject('a');await field('objective').fill('Une saisie gardée en mémoire');
+  const dialog=page.getByRole('dialog');
+  for(const selector of ['a[data-project-id="b"]','.nav-desktop a[href="/projects/a/quality"]','.project-home']){
+    const link=page.locator(selector).first();
+    await link.click();await dialog.waitFor();
+    assert.equal(await dialog.getByRole('button').count(),2);
+    if(selector.includes('data-project-id'))await page.screenshot({path:join(captures,'F02-protection-des-champs.png')});
+    await dialog.getByRole('button',{name:'Rester sur le formulaire'}).click();
+    assert.equal(new URL(page.url()).pathname,'/projects/a/control');
+    assert.equal(await field('objective').inputValue(),'Une saisie gardée en mémoire');
+  }
+  await page.locator('.project-home').first().click();await dialog.getByRole('button',{name:'Abandonner et quitter'}).click();
+  await page.waitForURL('**/projects/a');await pageA();assert.equal(await field('objective').inputValue(),'');
+  await field('objective').fill('Saisie corrigée');await field('objective').fill('');
+  await switchProject('b');await page.waitForURL('**/projects/b/control');
+  await pageA();await field('objective').fill('Envoi refusé');await field('scope').fill('Exercice');
+  await field('document').fill('Texte');await field('criteria').fill('Texte');
+  await page.route(origin+'/projects/a/control',route=>route.request().method()==='POST'?route.fulfill({status:503,contentType:'text/plain',body:'Indisponible'}):route.continue());
+  await page.getByRole('button',{name:'Créer la mission en brouillon',exact:true}).click();
+  await page.getByText('Mission non confirmée.',{exact:false}).waitFor();
+  await page.unroute(origin+'/projects/a/control');
+  assert.equal(await field('objective').inputValue(),'Envoi refusé');
+  await switchProject('b');await dialog.getByRole('button',{name:'Abandonner et quitter'}).click();await page.waitForURL('**/projects/b/control');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM control_missions')).rows[0].n,0);
+  console.log('F02 · garde par défaut, stockage inaccessible, formulaire intact, modification annulée, rester, abandonner, projet, espace, page et échec d’envoi vérifiés.');
+}
+async function measureMissionList() {
+  const measurements=[];
+  for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
+    await page.setViewportSize(viewport);await pageA();await page.waitForLoadState('networkidle');
+    const positions=await page.evaluate(()=>{
+      const y=selector=>Math.round(document.querySelector(selector).getBoundingClientRect().top+scrollY);
+      return {section:y('#missions'),premiereMission:y('#missions .mission-list li'),statut:y('#missions .mission-list .badge'),formulaire:y('#brief')};
+    });
+    assert(positions.premiereMission<positions.formulaire&&positions.statut<viewport.height);
+    assert(await page.locator('#missions .mission-list .badge').first().isVisible());
+    await page.screenshot({path:join(captures,'F07-missions-'+viewport.width+'.png')});
+    measurements.push({viewport,...positions});
+  }
+  await page.setViewportSize({width:1440,height:900});
+  console.log('F07 · hauteurs depuis le haut de la page, en px',JSON.stringify(measurements));
 }
 async function enroll(access,id,role){
   const invite=await access.invite({id:'admin-local',accountRole:'admin',projectIds:['a','b']},id,role,['a']);
@@ -56,7 +111,9 @@ try{
   const second=await enroll(access,'essai-auteur','operator'),reader=await enroll(access,'essai-lecteur','viewer');
   server=createServer(new Core(db),[principal],key,true);
   server.listen(0,'127.0.0.1');await once(server,'listening');origin='http://127.0.0.1:'+server.address().port;
-  await openBrowser();await authenticate(admin);await pageA();
+  await openBrowser();await authenticate(admin);await checkGuardOnly();
+  await context.close();context=undefined;
+  process.env.STUDIO_LOCAL_DRAFTS='1';await openBrowser();await authenticate(admin);await pageA();
   await switchProject('b');assert.match(page.url(),/\/b\/control$/);await switchProject('a');
   await field('objective').fill('Objectif synthétique privé');
   await field('scope').fill('Reprise de saisie locale');
@@ -65,7 +122,10 @@ try{
   await page.getByLabel('Finalité du dossier').selectOption('research');
   await field('sources').fill('Source synthétique');await field('document').fill('# Dossier\npreuve');await field('criteria').fill('preuve');
   await saved();
-  await switchProject('b');assert.equal(await field('objective').inputValue(),'');
+  await switchProject('b');await page.getByRole('button',{name:'Rester sur le formulaire'}).click();
+  assert.equal(await field('objective').inputValue(),'Objectif synthétique privé');
+  await switchProject('b');await page.getByRole('button',{name:'Enregistrer et continuer'}).click();await page.waitForURL('**/projects/b/control');
+  assert.equal(await field('objective').inputValue(),'');
   assert.equal(await page.getByRole('button',{name:'Reprendre',exact:true}).count(),0);
   await switchProject('a');await resume();assert.equal(await field('sources').inputValue(),'Source synthétique');
 
@@ -80,7 +140,7 @@ try{
       && !new TextDecoder().decode(row.sealed).includes('Objectif synthétique'));
   });
   assert(sealed);
-  await page.getByRole('button',{name:'Déconnexion'}).click();
+  await page.getByRole('button',{name:'Déconnexion'}).click();await page.getByRole('button',{name:'Enregistrer et continuer'}).click();await page.waitForURL(url=>!url.pathname.endsWith('/control'));
   await authenticate(second);await pageA();
   await page.waitForLoadState('networkidle');
   assert.equal(await page.getByRole('button',{name:'Reprendre',exact:true}).count(),0);
@@ -114,7 +174,7 @@ try{
   await switchProject('b');await page.getByRole('button',{name:'Rester sur le formulaire'}).click();
   assert.equal(await field('objective').inputValue(),'Saisie protégée pendant la panne');
   await switchProject('b');await page.getByRole('button',{name:'Enregistrer et continuer'}).click();
-  await page.getByText('Sauvegarde impossible.',{exact:false}).waitFor();
+  await page.getByText('Opération impossible.',{exact:false}).waitFor();
   await page.getByRole('button',{name:'Abandonner et quitter'}).click();await page.waitForURL('**/projects/b/control');
   await pageA();
   await field('objective').fill('Mission volontaire');await field('scope').fill('Dossier synthétique');
@@ -130,6 +190,9 @@ try{
   await resume();assert.equal(await field('scope').inputValue(),'Révision conservée');
   await Promise.all([page.waitForNavigation({waitUntil:'load'}),page.getByRole('button',{name:'Enregistrer la révision'}).click()]);
   const changed=(await db.query('SELECT scope FROM control_missions')).rows;assert.equal(changed[0].scope,'Révision conservée');
+  delete process.env.STUDIO_LOCAL_DRAFTS;
+  await measureMissionList();
+  console.log('Captures de la recette',captures);
   console.log('Brouillons · Chromium fermé et relancé sur le même profil, champs multi-finalités, création/révision, compte, projet, lecteur, conflits, abandon, panne IndexedDB, garde, soumission explicite, isolation et chiffrement vérifiés.');
 }finally{
   if(context)await context.close();
