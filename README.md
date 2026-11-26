@@ -1,10 +1,16 @@
 # Folk & Joy Studio
 
-## Candidate locale 0.3.0-rc.1
+## Version de développement 0.4.0-rc.1
 
-Le Studio pilote plusieurs projets et leurs permissions sur un PC Windows. Le Command Center suit les missions. Project Intelligence gère les sources versionnées et leur validation. Le Control Room distribue les revues documentaires à des agents locaux. L’Agent Office affiche leurs baux réels. Quality Lab et App Lab qualifient et prévisualisent des sources Git dans des profils bornés.
+Folk & Joy Studio est un poste de pilotage local pour des projets logiciels. Le Command Center montre les missions et les décisions à prendre. Depuis une mission, on peut retrouver l’agent chargé d’une tâche, son checkpoint et la révision de connaissance utilisée. Le portefeuille et le journal limitent chaque vue aux projets autorisés.
 
-La candidate du poste écoute sur **http://127.0.0.1:3040/**. Le Studio historique dispose de sa propre installation sur 3030. La branche de construction du produit est `feat/studio-product-foundation`.
+Pour prendre en main cette version, commencer par **Studio Academy**. Le carnet personnel permet de préparer une mission synthétique, d’en vérifier le résultat et d’examiner une relation SQL. Pour un projet réel, ouvrir sa fiche, consulter le dernier relevé Git, puis choisir les sources à autoriser dans chaque module.
+
+- [Rapport de recette et limites de la candidate](docs/evolution/rapport-final.md) · [Parcours entre les modules](docs/evolution/parcours-projet.md)
+- [Studio Academy](docs/studio-academy.md) · [Database Explorer, sources et révocation](docs/evolution/database-explorer.md) · [Agent Office pixel art](docs/evolution/agent-office.md)
+- [Architecture et automatisations par projet](docs/evolution/architecture-automations.md) · [Cartographie technique](docs/evolution/cartographie-architecture.md) · [Priorités et critères](docs/evolution/roadmap.md)
+
+La branche de construction est `feat/studio-evolution`. La recette Windows utilise une base indépendante sur `127.0.0.1:55453` et des serveurs HTTP temporaires. L’installation produit historique est configurée pour 3040 et l’instance A1 pour 3030. Les guides d’exploitation ci-dessous décrivent ces installations.
 
 - [Installer, démarrer et diagnostiquer](docs/product/exploitation.md)
 - [Activer un compte avec mot de passe et TOTP](docs/product/acces.md)

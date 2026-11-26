@@ -1,5 +1,17 @@
 # Historique du Studio
 
+## 0.4.0-rc.1 · 26 novembre 2026 · candidate de développement Studio
+
+- Le Command Center relie les alertes à leurs missions et partage le calcul de présence avec le Loft. Le journal permet de filtrer par projet, période et type d’événement.
+- Studio Academy conserve les réponses, les exercices et leur progression dans un carnet personnel. Les guides contextuels accompagnent les écrans du Studio.
+- Database Explorer photographie le catalogue PostgreSQL interne et les sources de projet explicitement autorisées. Les imports SQL, migrations et Prisma alimentent les fiches, la vue RLS, le diagramme relationnel et la comparaison de versions.
+- Le Control Room accepte huit finalités documentaires et deux ordonnancements. Chaque étape du graphe expose ses attributions, ses dépendances et les preuves produites.
+- Une révision de connaissance peut référencer une observation Git précise, une qualification ou une version de schéma. Quality Lab lit les métadonnées des versions accessibles et consigne la couverture des preuves pour six profils de qualification.
+- Le Loft isométrique répartit les agents entre quatre pièces à partir de leurs contacts et de leurs tâches. App Lab distingue les exemples du Studio des sources autorisées du projet et associe ses captures à un commit.
+- Les fiches Architecture et Automatisations relient la configuration déclarée, les inventaires figés, les règles du worker et leurs résultats. Les migrations 021 à 026 complètent le schéma de développement.
+
+[Recette Windows et état des modules](docs/evolution/rapport-final.md)
+
 ## 0.3.0-rc.1 · 26 novembre 2026 · candidate de recette locale
 
 - Accueil multi-projets, révision de profil, comptes administrateur, opérateur et lecteur avec mot de passe et TOTP.
