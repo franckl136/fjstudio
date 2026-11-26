@@ -45,7 +45,18 @@ async function submit(page,button) {
 async function enroll(page,invitation,id) {
   await page.goto(origin);
   await page.getByText('Activer un compte local',{exact:true}).click();
-  await page.locator('[name=invitation]').fill(invitation);
+  await page.keyboard.press('Tab');
+  const activation = page.getByLabel('Code d’activation', {exact:true});
+  const focusClearsLabel = await activation.evaluate(input => {
+    const labelText = document.createRange();
+    labelText.selectNodeContents(input.labels[0].firstChild);
+    const style = getComputedStyle(input);
+    const outside = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
+    return input.matches(':focus-visible') && parseFloat(style.outlineWidth) > 0 &&
+      input.getBoundingClientRect().top - outside > labelText.getBoundingClientRect().bottom;
+  });
+  assert(focusClearsLabel, 'Le contour de focus du champ d’activation doit laisser le libellé lisible.');
+  await activation.fill(invitation);
   await submit(page,page.getByRole('button',{name:'Commencer l’activation'}));
   assert.equal(await page.locator('h1').innerText(),'Activer '+id);
   const seed = seedBytes(await page.locator('main code').innerText());

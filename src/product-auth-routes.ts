@@ -16,7 +16,8 @@ export function humanLogin() {
   return layout('Connexion au Studio',`<section class="panel login"><h1>Ouvrir le Studio</h1>
     <form method="post" action="/login">${field('id','Identifiant','text','username')}${field('password','Mot de passe','password','current-password','maxlength="256"')}
     ${field('otp','Code de l’authentificateur','text','one-time-code','inputmode="numeric" pattern="[0-9]{6}"')}<button class="primary">Se connecter</button></form>
-    <details><summary>Activer un compte local</summary><p>Utilisez votre invitation. Pour le premier administrateur, utilisez la clé opérateur principale de cette instance.</p>
+    <details><summary>Activer un compte local</summary><p>Pour activer le premier compte <strong>admin-local</strong>, ouvrez PowerShell dans le dossier du Studio et lancez <code>npm.cmd run --silent access:local</code>. Collez la clé affichée dans le champ ci-dessous.</p>
+    <p>Si vous avez reçu une invitation, saisissez le code fourni par votre administrateur.</p>
     <form method="post" action="/enroll">${field('invitation','Code d’activation','password','off')}<button>Commencer l’activation</button></form></details></section>`);
 }
 export async function humanRoute(store:HumanAccess,req:IncomingMessage,res:ServerResponse,path:string,actor:Operator|null,

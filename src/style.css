@@ -18,6 +18,7 @@ body { margin: 0; min-width: 0; }
 a, summary { color: var(--accent); text-underline-offset: .2em; }
 a:hover, summary:hover { color: #8b412b; }
 :focus-visible { outline: 3px solid #b0672d; outline-offset: 3px; }
+:where(input:not([type="checkbox"], [type="radio"]), textarea, select):focus-visible { outline-offset: -3px; }
 .skip { position: absolute; top: -100px; padding: 1rem; background: var(--panel); z-index: 2; }
 .skip:focus { top: 0; }
 .topbar { min-height: 4rem; display: flex; justify-content: space-between; align-items: center; gap: .65rem; padding: .65rem clamp(1rem,3vw,2.6rem); background: var(--forest); color: #f9f5e6; border-bottom: 3px solid #a8b89a; }
@@ -82,6 +83,7 @@ button:hover,.button:hover { color: var(--forest); background: #e5eddd; }
 .quiet { color: #ecf3e5; background: transparent; border-color: #829b88; }
 .login { max-width: 30rem; margin: clamp(1rem,8vh,5.5rem) auto; border-top: 4px solid var(--clay); }
 .login h1 { font-size: 2.45rem; }
+.login label > input { display: block; margin-top: .5rem; }
 .error { color: #8d281d; }
 details { margin-top: .75rem; }
 summary { cursor: pointer; }
