@@ -7,8 +7,10 @@ import { activityWeek, readLoft, readWorkspace, type DeskIdentity } from './prod
 import type { Repositories } from './repositories.ts';
 import { officePage, profilePage, stationUrl, workspacePage } from './product-workspace-views.ts';
 import { saveProjectFollow } from './project-follow.ts';
+import { projectSpaces } from './project-navigation.ts';
+import { e,layout,orderedProjects } from './views.ts';
 import { officeScene } from './office-scene.ts';
-import { readActivity,activityPage,activityFilter } from './activity.ts';
+import { readActivity,activityPage,activityResults,activityFilter } from './activity.ts';
 
 interface WorkspaceTools {
   body(req: IncomingMessage, kind:'json'|'form'): Promise<JsonObject>;
@@ -23,6 +25,13 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
   actor: Operator, api: boolean, io: WorkspaceTools): Promise<boolean> {
   const path = api ? url.pathname.slice(4) : url.pathname;
   const get = req.method === 'GET';
+  const choice=/^\/espaces\/([a-z]+)$/.exec(path);
+  if(!api && get && choice && Object.hasOwn(projectSpaces,choice[1])){
+    const space=choice[1], projects=orderedProjects(await listWorkspaceProjects(pool,actor));
+    io.html(res,200,layout(projectSpaces[space],`<header class="heading"><h1>${e(projectSpaces[space])}</h1></header>
+      <section class="panel"><h2>Choisir le projet à ouvrir</h2>${projects.length?`<ul class="mission-list">${projects.map(p=>`<li><a href="/projects/${e(p.id)}/${space}">${e(p.name)}</a></li>`).join('')}</ul>`:'<p>Aucun projet disponible pour ce compte.</p>'}</section>`,projects,'',true,space));
+    return true;
+  }
   const follow=/^\/projects\/([^/]+)\/follow$/.exec(path);
   if(follow){
     if(!isProjectId(follow[1]))throw notFound();
@@ -36,7 +45,12 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     if(project) assertProject(actor,project);
     const data=await readActivity(pool,actor,project,activityFilter(url.searchParams));
     if(api) io.json(res,200,data);
-    else io.html(res,200,activityPage(data,await listWorkspaceProjects(pool,actor),project,url.searchParams));
+    else {
+      const projects=await listWorkspaceProjects(pool,actor);
+      res.setHeader('Vary','X-Studio-Fragment');
+      if(req.headers['x-studio-fragment']==='activity-results')io.html(res,200,activityResults(data,projects,url.searchParams));
+      else io.html(res,200,activityPage(data,projects,project,url.searchParams));
+    }
     return true;
   }
   if (path === '/workspace/observe' && !api) {

@@ -1,5 +1,11 @@
 # Piloter un projet dans Studio
 
+## Projet actif et espace de travail
+
+Sur ordinateur, les liens des projets et ceux des espaces occupent deux groupes dans la barre latérale. Sur petit écran, ouvrir **Projet** pour changer de portefeuille de travail dans le même espace, ou **Espace** pour changer d’outil en gardant le projet affiché. Les deux commandes fonctionnent au clavier. **Vue globale** donne accès à tous les projets autorisés. Depuis cette vue, la Control Room, Project Intelligence et les Labs commencent par demander le projet à ouvrir.
+
+Dans le portefeuille, **Prioritaires** filtre uniquement la liste des projets. Le libellé au-dessus des indicateurs précise leur portée, également indiquée sur le journal. Sur petit écran, chaque carte expose le projet, son état et le lien de reprise. **Détails du projet** donne accès au relevé Git, au dernier contrôle, au journal et au profil.
+
 ## Commencer sa journée
 
 Ouvrez le Command Center et choisissez votre projet. Le nombre de postes connectés additionne les postes disponibles et occupés. Le Core considère un contact A1 récent pendant 20 secondes et un contact documentaire pendant 30 secondes. Un bail en cours justifie aussi la présence. Un poste déclaré sans contact, une session Cursor historique et une attribution passée ont chacun un libellé distinct. La scène du Loft se fonde sur le même relevé que le tableau de bord.

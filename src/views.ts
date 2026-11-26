@@ -1,4 +1,4 @@
-import { projectDestination } from './project-navigation.ts';
+import { activeNavigationSpace,globalDestination,projectDestination } from './project-navigation.ts';
 import {followLabels,type Follow} from './project-follow.ts';
 import type {Stack} from './project-stack.ts';
 import { randomUUID } from 'node:crypto';
@@ -89,22 +89,28 @@ export function layout(
   activeModule = '',
 ): string {
   const menu = orderedProjects(projects);
-  const current = menu.find(project => project.id === selected) ?? menu[0];
+  const current = menu.find(project => project.id === selected);
+  const query = current ? '?project='+encodeURIComponent(current.id) : '';
+  const prefix = current ? '/projects/'+encodeURIComponent(current.id) : '/espaces';
   const navigation: [string,string,string,string][] = [
-    ['workspace','Command Center','/workspace','▦'],
-    ['office','Agent Office','/office','▧'],
+    ['workspace','Command Center','/workspace'+query,'▦'],
+    ['office','Agent Office','/office'+query,'▧'],
+    ['control','Agent Control Room',prefix+'/control','⇄'],
+    ['knowledge','Project Intelligence',prefix+'/knowledge','≡'],
+    ['quality','Quality Lab',prefix+'/quality','✓'],
+    ['lab','App Lab',prefix+'/lab','▣'],
+    ['database','Database Explorer',current?prefix+'/database':'/database','▤'],
+    ['academy','Studio Academy','/academy'+query,'◇'],
   ];
-  if (current) {
-    const prefix = '/projects/' + encodeURIComponent(current.id);
-    navigation.push(
-      ['control','Agent Control Room',prefix + '/control','⇄'],
-      ['knowledge','Project Intelligence',prefix + '/knowledge','≡'],
-      ['quality','Quality Lab',prefix + '/quality','✓'],
-      ['lab','App Lab',prefix + '/lab','▣'],
-    );
+  const pageSpace = activeNavigationSpace(activeModule,title);
+  const activeName = navigation.find(([key])=>key===pageSpace)?.[1] ?? title;
+  const spaceLinks = navigation.map(([key,name,path,symbol])=>`<a class="workspace-link" href="${e(path)}"${pageSpace===key?' aria-current="page"':''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('');
+  const globalLink = `<a class="global-project" href="${e(globalDestination(pageSpace))}"${current?'':' aria-current="true"'}>Vue globale</a>`;
+  const homeLink = current?`<a class="project-home" href="/projects/${e(current.id)}">Fiche du projet <span aria-hidden="true">↗</span></a>`:'';
+  function projectLinks(mobile=false){
+    return menu.map(project=>`<a ${mobile?'data-mobile-project':'data-project-id'}="${e(project.id)}" href="${e(projectDestination(project.id))}"${current?.id===project.id?' class="selected-project" aria-current="true"':''}>
+      ${mobile?'':`<span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>`}${e(project.name)}</a>`).join('');
   }
-  navigation.push(['database','Database Explorer',selected?'/projects/'+encodeURIComponent(selected)+'/database':'/database','▤'],
-    ['academy','Studio Academy','/academy','◇']);
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -126,13 +132,14 @@ export function layout(
 </header>
 <div class="frame ${authenticated ? '' : 'without-sidebar'}">
   ${authenticated ? `<nav aria-label="Navigation du Studio" class="sidebar">
-    <h2>Espaces</h2>
-    ${navigation.map(([key,name,path,symbol]) => `<a class="workspace-link" href="${e(path)}"${activeModule === key || (!activeModule && title === name) ? ' aria-current="page"' : ''}><span class="nav-symbol" aria-hidden="true">${symbol}</span>${name}</a>`).join('')}
-    ${projects.length ? '<h2 class="project-label">Projets</h2>' : ''}
-    ${menu.map(project => `<a data-project-id="${e(project.id)}" href="${e(projectDestination(project.id))}"${selected === project.id ? ' class="selected-project"' : ''}>
-      <span class="project-mark" aria-hidden="true">${e(project.id.slice(0,2).toUpperCase())}</span>${e(project.name)}
-    </a>`).join('')}
-    ${menu.some(p=>p.id===selected)?`<a class="project-home" href="/projects/${e(selected)}">Fiche du projet <span aria-hidden="true">↗</span></a>`:''}
+    <div class="nav-desktop">
+      <h2>Espaces</h2>${spaceLinks}
+      <h2 class="project-label">Projets</h2>${globalLink}${projectLinks()}${homeLink}
+    </div>
+    <div class="nav-mobile">
+      <details name="studio-nav"><summary><small>Projet</small><strong>${e(current?.name??'Vue globale')}</strong></summary><div>${globalLink}${projectLinks(true)}${current?`<a href="/projects/${e(current.id)}">Fiche du projet</a>`:''}</div></details>
+      <details name="studio-nav"><summary><small>Espace</small><strong>${e(activeName)}</strong></summary><div>${spaceLinks}</div></details>
+    </div>
   </nav>` : ''}
   <main id="contenu" class="content">${content}</main>
 </div>

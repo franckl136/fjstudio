@@ -15,7 +15,7 @@ function historyPanel(data:OfficeData) {
   const last=records.filter(r=>r.task==='synthesis').sort((a,b)=>Number(b.finished)-Number(a.finished))[0];
   const replay=last?records.filter(r=>r.project_id===last.project_id && r.mission_id===last.mission_id)
     .sort((a,b)=>Number(a.began)-Number(b.began)): [];
-  return `<div class="loft-history" data-mission="${last && replay.length===3?e(last.mission_id):''}">${last && replay.length===3?`<details><summary>Dernière mission · ${e(last.objective)}</summary>
+  return `<div class="loft-history" data-mission="${last && replay.length===3?e(last.mission_id):''}">${last && replay.length===3?`<details><summary>Historique de mission · ${e(last.objective)}</summary>
       <ol>${replay.map(r=>`<li data-member="${e(r.project_id+'/'+r.runner_id+'/'+r.role)}" data-area="${r.task==='synthesis'?'meeting':r.role==='verifier'?'control':'desks'}">${e(taskNames[r.task]??r.task)} · ${e(r.runner_id)} · ${date(r.finished)}</li>`).join('')}</ol>
       <a href="/projects/${e(last.project_id)}/control/${e(last.mission_id)}">Lire les trois checkpoints</a></details>
       <button type="button" class="loft-replay" hidden>Rejouer les trois étapes</button>`:''}</div>`;

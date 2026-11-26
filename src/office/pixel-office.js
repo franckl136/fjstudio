@@ -522,7 +522,7 @@ if(studio && paintFloor(studio)){
     const caption=studio.querySelector('[data-room-caption]');
     caption.textContent=current.dataset.name?current.dataset.name+' · '+current.dataset.purpose:count+' agent'+(count===1?'':'s')+' en ligne';
     for(const el of studio.querySelectorAll('.loft-people .pixel-person'))el.inert=current.dataset.camera!=='plan' && el.dataset.area!==current.dataset.camera;
-    for(const link of document.querySelectorAll('.office-controls a,.loft-presence a,.sidebar [data-project-id]')){
+    for(const link of document.querySelectorAll('.office-controls a,.loft-presence a,.sidebar [data-project-id],.sidebar [data-mobile-project]')){
       if(link.pathname!=='/office' || link.getAttribute('href').startsWith('#'))continue;
       const to=new URL(link.href);
       if(url.searchParams.has('salle'))to.searchParams.set('salle',url.searchParams.get('salle'));else to.searchParams.delete('salle');

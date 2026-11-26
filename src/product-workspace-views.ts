@@ -5,6 +5,8 @@ import type { ProjectProfile, profileDetail } from './product-workspace-projects
 import { date, e, eventLabels, layout, orderedProjects } from './views.ts';
 import { deskName,officeScene } from './office-scene.ts';
 import { cursorDirectory } from './cursor-views.ts';
+import { activityItem } from './activity.ts';
+import { isLabSample } from './product-lab-source.ts';
 
 const labels: Record<string,string> = {
   ...eventLabels, draft:'Brouillon',needs_approval:'À approuver',ready:'Prête',running:'En cours',paused:'Suspendue',
@@ -21,6 +23,7 @@ const labels: Record<string,string> = {
 };
 function label(key: string) { return e(labels[key] ?? key.replaceAll('_',' ')); }
 function badge(key: string) { return `<span class="status-pill status-${e(key)}">${label(key)}</span>`; }
+function labSourceLabel(key:string) { return isLabSample(key) ? 'Exemple synthétique du Studio' : 'Source autorisée du projet'; }
 function href(m: Pick<MissionDigest,'engine'|'project_id'|'id'>) {
   return '/projects/' + encodeURIComponent(m.project_id) + (m.engine === 'control' ? '/control/' : '/missions/') + encodeURIComponent(m.id);
 }
@@ -105,7 +108,7 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
   }
   if(data.backup?.outcome==='failed') alerts.push('<li><span>Sauvegarde en échec</span><a href="/activity?type=backup">Examiner le journal de maintenance</a></li>');
   for (const lab of data.labs.filter(l => l.verdict === 'FAIL' || l.verdict === 'NOT QUALIFIED')) {
-    alerts.push(`<li><span>${e(lab.verdict)}</span><a href="/projects/${e(lab.project_id)}/quality/${e(lab.id)}">${label(lab.profile)} · ${e(projectName(data,lab.project_id))}</a></li>`);
+    alerts.push(`<li><span>${e(lab.verdict)}</span><a href="/projects/${e(lab.project_id)}/quality/${e(lab.id)}">${label(lab.profile)} · ${e(projectName(data,lab.project_id))} · ${labSourceLabel(lab.source_key)}</a></li>`);
   }
   const now = data.capturedAt;
   const shown=projects.filter(p=>matches(p.id,focus) && (!changedOnly || changedRepos.some(r=>r.project_id===p.id)));
@@ -116,17 +119,22 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     const last=data.lastActivity.find(item=>item.project_id===p.id);
     const blocked=data.counts.filter(r=>r.project_id===p.id && ['blocked','failed','needs_approval'].includes(r.state)).reduce((n,r)=>n+r.total,0);
     const failedCheck=lab?.verdict==='FAIL'||lab?.verdict==='NOT QUALIFIED';
-    const health=blocked ? blocked+' mission(s) à examiner' : failedCheck ? 'Dernier contrôle à examiner' : lab?.verdict==='PASS' ? 'Dernier contrôle réussi' : 'Santé non qualifiée';
-    return `<tr><th scope="row"><a href="/projects/${e(p.id)}">${e(p.name)}</a>${p.description?`<small>${e(p.description.slice(0,142))}</small>`:''}</th>
-      <td class="repo-summary">${repo?`<a href="/projects/${e(p.id)}/repository">${e(repo.branch ?? (repo.local_commit?'HEAD détachée':'Consulter le dépôt'))}</a>
+    const health=blocked ? blocked+' mission(s) à examiner' : lab && isLabSample(lab.source_key) ? 'Dernier passage sur exemple' : failedCheck ? 'Dernier contrôle à examiner' : lab?.verdict==='PASS' ? 'Dernier contrôle réussi' : 'Santé non qualifiée';
+    const gitInfo = repo?`<a href="/projects/${e(p.id)}/repository">${e(repo.branch ?? (repo.local_commit?'HEAD détachée':'Consulter le dépôt'))}</a>
         ${repo.local_commit?`<small><code>${e(repo.local_commit.slice(0,8))}</code> · ${changed(repo)?'Changements locaux':'Arbre propre'}</small>
-        <small>Relevé ${date(repo.observed_at)}</small>`:''}`:'—'}</td>
-      <td>${active}<small>${e(health)}</small></td><td>${lab ? `<a href="/projects/${e(p.id)}/quality/${e(lab.id)}">${lab.verdict ? e(lab.verdict) : label(lab.state)}</a>` : 'Aucun passage'}</td>
-      <td><a href="/activity?project=${e(p.id)}">Journal</a>${last?`<small>${date(last.at)}</small>`:''} · <a href="/projects/${e(p.id)}/settings">Profil</a></td></tr>`;
+        <small>Relevé ${date(repo.observed_at)}</small>`:''}`:'Aucun relevé';
+    const control = lab ? `<a href="/projects/${e(p.id)}/quality/${e(lab.id)}">${lab.verdict ? e(lab.verdict) : label(lab.state)}</a><small>${labSourceLabel(lab.source_key)}</small> ` : 'Aucun passage';
+    const actions = `<a href="/activity?project=${e(p.id)}">Journal</a>${last?`<small>${date(last.at)}</small>`:''} · <a href="/projects/${e(p.id)}/settings">Profil</a>`;
+    return `<tr><th scope="row"><a href="/projects/${e(p.id)}">${e(p.name)}</a>${p.description?`<small class="portfolio-description">${e(p.description.slice(0,142))}</small>`:''}</th>
+      <td class="portfolio-mobile"><p>${e(health)} · ${active} mission(s) ouverte(s)</p><a href="/projects/${e(p.id)}#reprise">Reprendre le projet</a>
+      <details><summary>Détails du projet</summary>${p.description?`<p>${e(p.description)}</p>`:''}<dl><dt>État Git local</dt><dd>${gitInfo}</dd><dt>Dernier contrôle</dt><dd>${control}</dd><dt>Ouvrir</dt><dd>${actions}</dd></dl></details></td>
+      <td data-column="État Git local" class="repo-summary">${gitInfo}</td><td data-column="Missions ouvertes">${active}<small>${e(health)}</small></td>
+      <td data-column="Dernier contrôle">${control}</td><td data-column="Ouvrir">${actions}</td></tr>`;
   }).join('');
   const maximum=Math.max(1,...topRepos.map(r=>r.worktree!.unstaged));
   return layout('Command Center',`<header class="product-heading cockpit-heading"><div><h1>Command Center</h1><p>${filter?e(projectName(data,filter)):'Vue du portefeuille'} · ${date(now)}</p></div>
     ${projectFilter('/workspace',data,filter,query)}</header>
+    <p class="scope-caption">Indicateurs et activité · ${filter?e(projectName(data,filter)):'Tous les projets autorisés'}</p>
     <div class="summary-strip">
       <div><span>Dossiers reliés en local</span><strong>${connected.size}</strong><a href="#portefeuille">${projects.length} ${projects.length>1?'projets suivis':'projet suivi'}</a></div>
       <div><span>Missions en cours</span><strong>${missionCount(data,'running')}</strong><a href="#missions">Voir les missions</a></div>
@@ -136,7 +144,7 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     ${priorityCards?`<section class="panel priority-section"><h2>Mes projets prioritaires</h2><div class="priority-projects">${priorityCards}</div></section>`:''}
     <section id="portefeuille" class="panel"><header class="section-head"><h2>Portefeuille de projets</h2>
       ${'accountRole' in actor && actor.accountRole === 'admin' ? '<a class="button" href="/projects/new">Créer un projet</a>' : ''}</header>
-      <nav class="follow-filters" aria-label="Suivi des projets">${focusLinks}</nav><div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
+      <p class="field-help">Le suivi filtre uniquement cette liste de projets.</p><nav class="follow-filters" aria-label="Suivi des projets">${focusLinks}</nav><div class="actions portfolio-actions"><a href="/workspace?${e(listQuery.toString())}#portefeuille">${changedOnly?'Afficher tous les projets':'Afficher les dépôts modifiés'}</a>
       ${hasArchives?'<a href="/workspace/archives">Démonstrations archivées</a>':''}
       ${actor.accountRole!=='viewer' && data.repositories.some(r=>r.local_only)?`<form method="post" action="/workspace/observe">${filter?`<input type="hidden" name="project" value="${e(filter)}">`:''}<button>Actualiser les relevés Git</button></form>`:''}</div>${refreshNote}
       ${shown.length ? `<div class="table-wrap"><table><thead><tr><th>Projet</th><th>État Git local</th><th>Missions ouvertes¹</th><th>Dernier contrôle</th><th>Ouvrir</th></tr></thead><tbody>${projectRows}</tbody></table></div><p class="field-help">¹ Prêtes, en cours, bloquées ou à approuver.</p>` : `<p>${changedOnly?'Aucun dépôt modifié dans ce périmètre.':'Aucun projet dans cette sélection.'}</p>`}</section>
@@ -163,8 +171,9 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
       <a href="/agents">Catalogue des adaptateurs</a>${actor.accountRole === 'admin' ? '<a href="/people">Comptes locaux</a>' : ''}</div></details></section></div>
     <div class="workspace-grid"><section class="panel" id="missions"><h2>Missions</h2>
       ${data.missions.length ? `<ul class="work-feed">${data.missions.map(m => `<li><div><a href="${e(href(m))}">${e(m.objective)}</a><small>${e(projectName(data,m.project_id))} · ${date(m.at)}</small></div>${badge(m.status)}</li>`).join('')}</ul>` : '<p>Aucune mission enregistrée.</p>'}</section>
-    <section class="panel"><header class="section-head"><h2>Journal d’activité</h2><a href="/activity${filter?'?project='+e(filter):''}">Filtrer le journal →</a></header>
-      ${data.events.length ? `<ol class="event-feed">${data.events.map(ev => `<li><a href="${e(ev.href)}">${label(ev.kind)} · ${e(ev.subject)}</a><small>${e(ev.project_id?projectName(data,ev.project_id):'Studio')} · ${e(ev.source)} · ${date(ev.at)}${ev.actor ? ' · '+e(ev.actor) : ''}</small></li>`).join('')}</ol>` : '<p>Aucun événement enregistré.</p>'}</section></div>`,
+    <section class="panel"><header class="section-head"><h2>Journal d’activité</h2><a href="/activity${filter?'?project='+e(filter):''}">Tout le journal →</a></header>
+      <p>${filter?e(projectName(data,filter)):'Tous les projets autorisés'} · Faits marquants sur 30 jours</p>
+      ${data.events.length ? `<ol class="event-feed">${data.events.map(ev=>activityItem(ev,data.projects)).join('')}</ol>` : '<p>Aucun événement sur cette période.</p>'}</section></div>`,
     data.projects,filter,true,'workspace');
 }
 

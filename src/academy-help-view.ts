@@ -1,19 +1,23 @@
+import { posix } from 'node:path';
 import { e } from './views.ts';
 import { helpDocs, type HelpDoc } from './academy-help.ts';
 
-function inline(source:string) {
+function renderInline(source:string,sourceFile:string,project?:string) {
   return source.split(/(\x60[^\x60]+\x60|\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g).map(part=>{
     if(part.startsWith('\x60')&&part.endsWith('\x60')) return '<code>'+e(part.slice(1,-1))+'</code>';
     if(part.startsWith('**')&&part.endsWith('**')) return '<strong>'+e(part.slice(2,-2))+'</strong>';
     const link=/^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
     if(link) {
-      const doc=helpDocs().find(d=>d.file===link[2]);
-      return doc?'<a href="/academy/docs/'+e(doc.id)+'">'+e(link[1])+'</a>':e(link[1]);
+      const file=posix.join(posix.dirname(sourceFile),link[2]);
+      const doc=helpDocs().find(d=>d.file===file);
+      const scope=project?'?project='+encodeURIComponent(project):'';
+      return doc?'<a href="/academy/docs/'+e(doc.id)+scope+'">'+e(link[1])+'</a>':e(link[1]);
     }
     return e(part);
   }).join('');
 }
-export function documentBody(doc:HelpDoc) {
+export function documentBody(doc:HelpDoc,project?:string) {
+  const inline=(text:string)=>renderInline(text,doc.file,project);
   const lines=doc.paragraphs.join('\n\n').split(/\r?\n/);
   const result:string[]=[];
   for(let i=0;i<lines.length;){

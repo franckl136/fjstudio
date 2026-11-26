@@ -15,6 +15,8 @@ Ouvrir **Agent Office** pour retrouver les agents locaux des projets attribués 
 
 **Se repérer.** Le plan commun affiche les agents connectés des projets sélectionnés. Les quatre pièces communiquent autour d’un passage central. Le nom d’une pièce permet de zoomer sans interrompre le suivi. **Plan complet** rétablit la vue d’ensemble. Les agents qui quittent la pièce libèrent leur place. Le réglage système de réduction des animations affiche directement la destination.
 
+**Comprendre les compteurs.** Un poste correspond à un identifiant de runner, un rôle et un projet. Le compteur des postes connus inclut les postes configurés et ceux dont le Studio a observé un contact ou une attribution. Le nombre de connectés additionne les disponibles (contact récent) et les occupés (bail encore valide). Les sessions Cursor sont recensées dans leur propre rubrique à partir des liens GitHub importés. Une fiche de poste ouvre les missions qui lui sont attribuées. **Historique de mission** restitue les trois checkpoints d’une synthèse retrouvée parmi les dernières attributions visibles de chaque poste.
+
 ## Architecture du rendu
 
 Le serveur associe chaque poste à un triplet projet, identifiant et rôle. Les baux et contacts déterminent les affectations. Les sessions Cursor documentées par des PR restent accessibles dans leur rubrique avec la date du relevé.

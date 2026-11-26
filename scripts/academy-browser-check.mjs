@@ -33,5 +33,16 @@ export async function checkAcademy(operator,viewer,origin) {
   assert(await viewer.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await viewer.goto(origin+'/academy?q=bail#aide');
   assert(await viewer.locator('#aide').getByRole('link',{name:'Lire le bail du runner'}).count());
-  return {wrongAnswer:true,resume:true,practicalProject:true,foreignKey:true,privateProgress:true,readOnlyMobile:true};
+  for(const [guide,expected] of [['/mission','/espaces/control'],['/mission?project=a','/projects/a/control'],['/donnees','/database'],['/donnees?project=a','/projects/a/database'],['/pilotage?project=a','/workspace?project=a#attention']]){
+    await viewer.goto(origin+'/academy'+guide);
+    assert.equal(await viewer.getByRole('link',{name:'Consulter cet espace du Studio'}).getAttribute('href'),expected);
+  }
+  await viewer.goto(origin+'/academy?project=a&q=Command%20Center#aide');
+  await viewer.locator('#aide').getByRole('link',{name:'Command Center et Agent Office',exact:true}).first().click();
+  assert.equal(new URL(viewer.url()).searchParams.get('project'),'a');
+  await viewer.getByRole('link',{name:'Revue des changements',exact:true}).click();
+  assert.equal(new URL(viewer.url()).pathname,'/academy/docs/review');
+  assert.equal(new URL(viewer.url()).searchParams.get('project'),'a');
+  assert.equal(await viewer.getByRole('link',{name:'Recherche documentaire',exact:false}).getAttribute('href'),'/academy?project=a#aide');
+  return {moduleScope:true,documentScope:true,wrongAnswer:true,resume:true,practicalProject:true,foreignKey:true,privateProgress:true,readOnlyMobile:true};
 }

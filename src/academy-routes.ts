@@ -4,6 +4,7 @@ import { DomainError, type Operator, type JsonObject } from './contracts.ts';
 import { notFound } from './database.ts';
 import { date, e, layout } from './views.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
+import { globalDestination } from './project-navigation.ts';
 import { lessons, type Lesson } from './academy-catalog.ts';
 import { beginLesson, checkLesson, findLesson, lessonChoices, notebook, previousPractice, teachingSchema, trainingObjectives } from './academy.ts';
 import { helpDocs, helpSearch } from './academy-help.ts';
@@ -47,13 +48,13 @@ function catalogPage(book:Book,actor:Operator,q:string,project?:string|null) {
   const search=helpSearch(q);
   const searchView=q?`<div aria-live="polite"><h3>Résultats pour « ${e(q)} »</h3>
     ${search.lessons.length?'<ul>'+search.lessons.map(l=>'<li><a href="'+pathTo(l.id,project)+'">'+e(l.title)+'</a></li>').join('')+'</ul>':''}
-    ${search.docs.length?'<ul>'+search.docs.map(d=>'<li><a href="/academy/docs/'+e(d.id)+'">'+e(d.title)+'</a><p>'+e(d.excerpt)+'</p></li>').join('')+'</ul>':''}
+    ${search.docs.length?'<ul>'+search.docs.map(d=>'<li><a href="/academy/docs/'+e(d.id)+projectQuery(project)+'">'+e(d.title)+'</a><p>'+e(d.excerpt)+'</p></li>').join('')+'</ul>':''}
     ${search.lessons.length||search.docs.length?'':'<p>Aucun guide trouvé. Essayez « bail », « qualification » ou « sauvegarde ».</p>'}</div>`:'';
   return `<header class="product-heading"><div><h1>Studio Academy</h1><p>Apprenez à piloter le Studio dans votre carnet de formation personnel.</p></div></header>
     <section id="aide" class="panel"><h2>Rechercher dans les guides</h2>
       <form class="search-toolbar" role="search" method="get" action="/academy#aide">${project?'<input type="hidden" name="project" value="'+e(project)+'">':''}<label for="academy-q">Question ou mots-clés</label><input id="academy-q" type="search" name="q" maxlength="120" value="${e(q)}">
       <button>Rechercher</button></form>${searchView}
-      <details><summary>Documentation consultable</summary><ul>${helpDocs().map(d=>'<li><a href="/academy/docs/'+d.id+'">'+e(d.title)+'</a></li>').join('')}</ul></details></section>
+      <details><summary>Documentation consultable</summary><ul>${helpDocs().map(d=>'<li><a href="/academy/docs/'+d.id+projectQuery(project)+'">'+e(d.title)+'</a></li>').join('')}</ul></details></section>
     <section class="panel academy-progress"><div><h2>Votre parcours</h2>
       <p><strong>${finished.length} sur ${lessons.length}</strong> exercices validés · ${book.progress.filter(p=>!p.completed_at).length} en cours</p>
       <progress max="${lessons.length}" value="${finished.length}" aria-label="Exercices validés"></progress></div>
@@ -64,13 +65,13 @@ function catalogPage(book:Book,actor:Operator,q:string,project?:string|null) {
       `<li><a href="${pathTo(l.id,project)}">${e(l.title)}</a><small>${status(book,l.id)}</small></li>`).join('')}</ol></section>`).join('')}</div>
     ${finished.length?`<details class="panel"><summary>Compétences exercées et validées</summary><ul>${finished.map(l=>`<li><a href="${pathTo(l.id,project)}#preuve">${e(l.outcome)}</a></li>`).join('')}</ul></details>`:''}`;
 }
-function moduleLink(lesson:Lesson,project:string|undefined,actor:Operator) {
+export function moduleLink(lesson:Lesson,project?:string) {
   const prefix=project?'/projects/'+encodeURIComponent(project):'';
-  if(lesson.module==='database') return actor.accountRole==='admin'||!actor.accountRole?'/database':prefix?prefix+'/database':'';
-  if(lesson.module==='workspace') return '/workspace'+(lesson.id==='pilotage'?'#attention':'');
-  if(lesson.module==='office') return '/office'+(project?'?project='+encodeURIComponent(project):'')+'#loft';
-  if(lesson.module==='projects') return prefix||'/workspace#portefeuille';
-  return prefix?prefix+'/'+lesson.module:'';
+  if(lesson.id==='github')return '/office'+projectQuery(project)+'#cursor';
+  if(lesson.module==='workspace')return '/workspace'+projectQuery(project)+(lesson.id==='pilotage'?'#attention':'');
+  if(lesson.module==='office')return '/office'+projectQuery(project)+'#loft';
+  if(lesson.module==='projects')return prefix||'/workspace#portefeuille';
+  return prefix?prefix+'/'+lesson.module:globalDestination(lesson.module);
 }
 function receipts(evidence:JsonObject) {
   return '<details open><summary>Résultat enregistré dans votre carnet</summary><dl class="academy-receipt">'+Object.entries(evidence).map(([k,v])=>
@@ -80,7 +81,7 @@ async function lessonPage(book:Book,actor:Operator,lesson:Lesson,project:string|
   const row=book.progress.find(p=>p.lesson===lesson.id),root=pathTo(lesson.id);
   const prerequisites=lesson.stage && lesson.stage>book.stage+1?previousPractice(book.stage):undefined;
   const upcoming=recommendation(book);
-  const url=moduleLink(lesson,project??actor.projectIds[0],actor);
+  const url=moduleLink(lesson,project);
   const scope=projectQuery(project);
   const options=lessonChoices(lesson,book.practice);
   let material='';
@@ -130,8 +131,8 @@ export async function academyRoute(pool:Pool,req:IncomingMessage,res:ServerRespo
       const doc=helpDocs().find(d=>d.id===action);
       if(!doc) throw notFound();
       if(api) io.json(res,200,doc);
-      else await render(200,doc.title,'<a href="/academy#aide">← Recherche documentaire</a><section class="panel"><h1>'+e(doc.title)+'</h1><p>Source locale · docs/'+e(doc.file)+'</p>'+
-        documentBody(doc)+'</section>');
+      else await render(200,doc.title,'<a href="/academy'+projectQuery(project)+'#aide">← Recherche documentaire</a><section class="panel"><h1>'+e(doc.title)+'</h1><p>Source locale · docs/'+e(doc.file)+'</p>'+
+        documentBody(doc,project??undefined)+'</section>');
       return true;
     }
     if(parts.length>1 || id==='docs') throw notFound();

@@ -17,7 +17,7 @@ import { DomainError, isFixtureId, isObject, isProjectId } from './contracts.ts'
 import { assertProject } from './database.ts';
 import { projectStack } from './project-stack.ts';
 import { projectFollow } from './project-follow.ts';
-import { loginPage, projectPage, missionPage, errorPage,layout,e,orderedProjects } from './views.ts';
+import { loginPage, projectPage, missionPage, errorPage,layout,e } from './views.ts';
 
 import { HumanAccess, identityKey } from './product-auth.ts';
 import { cookie, humanCookie, humanLogin, humanRoute } from './product-auth-routes.ts';
@@ -447,9 +447,7 @@ export function createServer(core: Core, credentials: readonly Credential[], hum
       }
       if (await studioRoute(req,res,url,actor,false,session.actor.projectIds.some(id=>archives.includes(id)))) return;
       if (path === '/login' && method === 'GET') {
-        const [first] = orderedProjects(await core.listProjects(actor));
-        if (!first) fail(404, 'not_found', 'Aucun projet accessible.');
-        redirect(res, '/projects/' + first.id);
+        redirect(res, '/workspace');
         return;
       }
       const route = /^\/projects\/([^/]+)(?:\/missions(?:\/([^/]+)(\/cancel)?)?)?$/.exec(path);
