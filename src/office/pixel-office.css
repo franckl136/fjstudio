@@ -1,0 +1,63 @@
+.pixel-loft.panel {background:#f8f4e8;border:1px solid #9da58a;color:#213e36;box-shadow:0 .5rem 1.3rem #24382c1a;}
+.pixel-loft .section-head {background:#244d43;border-bottom:3px solid #cdb275;padding:.8rem 1rem;}
+.pixel-loft .section-head h2 {color:#fff3d5;}
+.pixel-loft .room-tabs {display:flex;align-items:center;flex-wrap:wrap;gap:.25rem;padding:.4rem .65rem;border-bottom:1px solid #bdc4ad;background:#e8ecd9;}
+.pixel-loft .room-tabs a {display:flex;align-items:center;gap:.3em;padding:.45rem .65rem;color:#345247;text-decoration:none;font-size:.83rem;font-weight:600;border-radius:.32rem;}
+.pixel-loft .room-tabs a:hover {background:#dce3cc;}
+.pixel-loft .room-tabs a[aria-current] {color:#fff3d5;background:#31564b;}
+.pixel-loft .room-tabs span {display:inline-grid;place-items:center;min-width:1.28em;border-radius:.2rem;background:#bacab3;color:#254d3d;font-variant-numeric:tabular-nums;}
+.pixel-campus {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#acb49a;}
+.pixel-room {min-width:0;background:#f8f5e8;overflow:hidden;}
+.pixel-room header {display:flex;align-items:center;justify-content:space-between;padding:.55rem .85rem;gap:.5rem;}
+.pixel-room h3 {margin:0;color:#244a3d;font:600 1.08rem/1.2 Georgia,serif;}
+.pixel-room h3 a,.pixel-loft .loft-presence a,.pixel-loft .loft-history a,.pixel-loft summary {color:#285547;}
+.pixel-room h3 a {text-decoration:none;} .pixel-room h3 a:hover{text-decoration:underline;}
+.pixel-room small {font-size:.76rem;color:#566558;}
+.room-total {padding:.12rem .48rem;border-radius:.3rem;background:#e3e7ce;color:#395745;font:650 .83rem/1.4 system-ui;}
+.pixel-floor {position:relative;background:#d3d7bf;}
+.pixel-floor>canvas {display:none;width:100%;height:auto;image-rendering:pixelated;}
+.pixel-floor.pixel-ready>canvas {display:block;}
+.pixel-floor .loft-people {position:static;display:flex;gap:.4rem;flex-wrap:wrap;padding:.55rem;min-height:2.4rem;}
+.pixel-floor .loft-people:empty::before {content:'Aucun agent dans la pièce';color:#364f41;font-size:.8rem;}
+.pixel-floor.pixel-ready .loft-people:empty::before {content:none;}
+.pixel-floor.pixel-ready .loft-people,.pixel-floor .loft-playback {display:block;position:absolute;inset:0;padding:0;min-height:0;}
+.pixel-floor .pixel-person {display:inline-block;position:static;background:#eff1da;color:#254d3e;padding:.35rem;border-radius:.3rem;transform:none;animation:none!important;transition:none;min-width:0;width:auto;height:auto;}
+.pixel-floor .pixel-person::before {content:none;}
+.pixel-floor:not(.pixel-ready) .pixel-person[data-seat] {width:auto;height:auto;margin:.15rem;}
+.pixel-figure {display:none;image-rendering:pixelated;}
+.pixel-ready .pixel-person[data-seat],.pixel-ready .loft-playback .pixel-person {position:absolute;display:block;left:var(--x,45%);top:var(--y,61%);width:10.5%;height:auto;aspect-ratio:30/40;transform:translate(-50%,-97%);padding:0;background:none;}
+.pixel-ready .pixel-person::before {content:'';position:absolute;left:19%;right:19%;width:auto;bottom:1%;height:6%;background:#534f4066;border-radius:45%;filter:none;}
+.pixel-ready .pixel-figure {position:relative;display:block;width:100%;height:auto;}
+.pixel-ready .pixel-label {display:none;position:absolute;left:50%;bottom:95%;transform:translateX(-50%);color:#fff9de;background:#254738f2;border:1px solid #d1be87;padding:.24rem .4rem;max-width:10rem;width:max-content;border-radius:.25rem;font:600 .72rem/1.18 system-ui;text-align:center;}
+.pixel-ready .pixel-person:is(:hover,:focus-visible) .pixel-label {display:block;}
+.pixel-ready .pixel-person[data-area=coffee][data-seat="0"] {--x:40%;--y:58%;}
+.pixel-ready .pixel-person[data-area=coffee][data-seat="1"] {--x:56%;--y:67%;}
+.pixel-ready .pixel-person[data-area=coffee][data-seat="2"] {--x:31%;--y:61%;}
+.pixel-ready .pixel-person[data-area=coffee][data-seat="3"] {--x:42%;--y:76%;}
+.pixel-ready .pixel-person[data-area=desks][data-seat="0"] {--x:38%;--y:52%;}
+.pixel-ready .pixel-person[data-area=desks][data-seat="1"] {--x:61%;--y:65%;}
+.pixel-ready .pixel-person[data-area=desks][data-seat="2"] {--x:33%;--y:66%;}
+.pixel-ready .pixel-person[data-area=desks][data-seat="3"] {--x:54%;--y:75%;}
+.pixel-ready .pixel-person[data-area=meeting][data-seat="0"] {--x:38%;--y:63%;}
+.pixel-ready .pixel-person[data-area=meeting][data-seat="1"] {--x:64%;--y:66%;}
+.pixel-ready .pixel-person[data-area=meeting][data-seat="2"] {--x:47%;--y:76%;}
+.pixel-ready .pixel-person[data-area=meeting][data-seat="3"] {--x:61%;--y:79%;}
+.pixel-ready .pixel-person[data-area=control][data-seat="0"] {--x:36%;--y:52%;}
+.pixel-ready .pixel-person[data-area=control][data-seat="1"] {--x:59%;--y:66%;}
+.pixel-ready .pixel-person[data-area=control][data-seat="2"] {--x:34%;--y:66%;}
+.pixel-ready .pixel-person[data-area=control][data-seat="3"] {--x:49%;--y:76%;}
+.pixel-ready .pixel-arrived .pixel-figure {animation:loft-enter .5s ease-out;}
+@keyframes loft-enter {from {translate:-10% 2%;opacity:.55;} to {translate:0;opacity:1;}}
+.pixel-loft:not([data-focus=plan]) .pixel-campus,.pixel-loft[data-replay] .pixel-campus {grid-template-columns:minmax(0,1fr);}
+.pixel-loft:not([data-focus=plan]):not([data-replay]) .pixel-room[data-in-focus=no],.pixel-loft[data-replay] .pixel-room:not(.room-playing) {display:none;}
+.pixel-loft .loft-presence {background:#eceddc;border-top:1px solid #adb69f;color:#354d40;padding:.6rem .9rem;}
+.pixel-loft .loft-presence a {font-size:.8rem;}
+.pixel-loft .loft-presence nav {color:#354d40;}
+.pixel-loft .loft-presence nav a {background:#d6dec6;}
+.pixel-loft .loft-history {border-top:1px solid #b9c2a8;color:#354d40;}
+.pixel-loft .loft-history time,.pixel-loft .loft-caption {color:#455f51;}
+.pixel-loft:fullscreen {display:block;background:#eeeeda;}
+.pixel-loft:fullscreen .pixel-campus {max-width:110rem;margin:auto;}
+.pixel-loft:fullscreen:not([data-focus=plan]) .pixel-campus,.pixel-loft:fullscreen[data-replay] .pixel-campus {max-width:min(100%,145vh);}
+@media(max-width:760px) { .pixel-campus {grid-template-columns:minmax(0,1fr);} .pixel-loft .room-tabs {gap:.1rem;padding:.35rem;} .pixel-loft .room-tabs a {padding:.42rem .5rem;} }
+@media(prefers-reduced-motion:reduce) { .pixel-loft * {scroll-behavior:auto;} .pixel-ready .pixel-arrived .pixel-figure {animation:none;} }

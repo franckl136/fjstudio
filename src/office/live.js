@@ -1,6 +1,6 @@
 const plan = document.querySelector('.office-plan');
 const loft=document.querySelector('.loft');
-const crowd=loft.querySelector('.loft-people');
+const pixels=loft.classList.contains('pixel-loft');
 const historyPanel=loft.querySelector('.loft-history');
 let playbackTimer;
 const expand=loft.querySelector('.loft-expand');
@@ -26,6 +26,7 @@ function stopReplay() {
   clearTimeout(playbackTimer);
   delete loft.dataset.replay;
   loft.querySelector('.loft-playback')?.remove();
+  loft.querySelector('.room-playing')?.classList.remove('room-playing');
   loft.querySelector('.loft-caption').textContent='';
   const button=historyPanel.querySelector('.loft-replay');
   if(button) button.textContent='Rejouer les trois étapes';
@@ -41,27 +42,57 @@ historyPanel.addEventListener('click',event=>{
   button.textContent='Terminer la relecture';
   const layer=document.createElement('div');
   layer.className='loft-playback';layer.setAttribute('aria-hidden','true');
-  loft.querySelector('.loft-floor').append(layer);
+  if(!pixels) loft.querySelector('.loft-floor').append(layer);
   const actor=document.createElement('i');
-  const sprite=document.createElement('i');sprite.className='walker';actor.append(sprite);
+  if(!pixels) {
+    const sprite=document.createElement('i');sprite.className='walker';actor.append(sprite);
+  }
   layer.append(actor);
   function show(index) {
     if(index===steps.length) { stopReplay();return; }
     const step=steps[index];
-    actor.className='loft-person look-'+step.dataset.look;
+    actor.className='loft-person '+(pixels?'pixel-person ':'')+'look-'+step.dataset.look;
     actor.dataset.area=step.dataset.area;actor.dataset.seat='0';
+    if(pixels) {
+      const room=loft.querySelector('[data-office-room="'+step.dataset.area+'"]');
+      if(!room) {stopReplay();return;}
+      loft.querySelector('.room-playing')?.classList.remove('room-playing');
+      room.classList.add('room-playing');
+      room.querySelector('.pixel-floor').append(layer);
+      delete actor.dataset.drawn;actor.replaceChildren();loft.dispatchEvent(new Event('loft-repaint'));
+    }
     loft.querySelector('.loft-caption').textContent='Relecture · '+(index+1)+'/3 · '+step.textContent;
     playbackTimer=setTimeout(()=>show(index+1),2400);
   }
   show(0);
 });
 function updateLoft(next) {
-  const previous=new Map(Array.from(crowd.children,p=>[p.dataset.member,p]));
-  for(const incoming of next.querySelector('.loft-people').children) {
-    const person=previous.get(incoming.dataset.member);
-    if(!person) { crowd.append(incoming.cloneNode(true));continue; }
-    previous.delete(incoming.dataset.member);
-    for(const attr of ['data-area','data-seat','title','aria-label']) person.setAttribute(attr,incoming.getAttribute(attr));
+  const previous=new Map(Array.from(loft.querySelectorAll('.loft-people > [data-member]'),p=>[p.dataset.member,p]));
+  for(const incomingRoom of next.querySelectorAll('.loft-people')) {
+    const crowd=pixels?loft.querySelector('[data-crowd="'+incomingRoom.dataset.crowd+'"]'):loft.querySelector('.loft-people');
+    for(const incoming of incomingRoom.children) {
+      const person=previous.get(incoming.dataset.member);
+      if(!person) { crowd.append(incoming.cloneNode(true));continue; }
+      previous.delete(incoming.dataset.member);
+      if(person.parentElement!==crowd) {
+        const focused=document.activeElement===person;
+        crowd.append(person);
+        if(focused)person.focus({preventScroll:true});
+        person.classList.remove('pixel-arrived');
+        requestAnimationFrame(()=>person.classList.add('pixel-arrived'));
+      }
+      for(const attr of ['data-area','data-seat','href','title','aria-label']) person.setAttribute(attr,incoming.getAttribute(attr));
+    }
+  }
+  for(const count of loft.querySelectorAll('[data-count]')) {
+    count.textContent=next.querySelector('[data-count="'+count.dataset.count+'"]').textContent;
+  }
+  for(const surface of loft.querySelectorAll('canvas[data-room-art]')){
+    const incoming=next.querySelector('canvas[data-room-art="'+surface.dataset.roomArt+'"]');
+    if(incoming && surface.dataset.occupants!==incoming.dataset.occupants) {
+      surface.dataset.occupants=incoming.dataset.occupants;
+      surface.dispatchEvent(new Event('loft-occupancy',{bubbles:true}));
+    }
   }
   for(const absent of previous.values()) absent.remove();
   const presence=loft.querySelector('.loft-presence'),snapshot=next.querySelector('.loft-presence');
