@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
 import { DomainError, isProjectId, type Operator, type ProjectId } from './contracts.ts';
-import { assertProject, notFound, transaction } from './database.ts';
+import { assertId, assertProject, notFound, transaction } from './database.ts';
 
 export interface RepositoryPolicy {
   project: ProjectId;
@@ -233,12 +233,14 @@ export class Repositories {
     finally { this.active.delete(policy.key); }
   }
 
-  async state(actor: Operator, project: ProjectId) {
+  async state(actor: Operator, project: ProjectId, observation?: string) {
     assertProject(actor,project);
+    if (observation !== undefined) assertId(observation);
     const available = policies().filter(p=>p.project===project).map(p=>({key:p.key,remote:p.remote,directory:p.directory}));
     const target = (await this.pool.query<{ repository_key:string;remote_url:string; registered_by:string;registered_at:Date }>(
       'SELECT repository_key,remote_url,registered_by,registered_at FROM project_repositories WHERE project_id=$1',[project])).rows[0] ?? null;
-    const observations=(await this.pool.query<RepositoryObservation>('SELECT * FROM repository_observations WHERE project_id=$1 ORDER BY observed_at DESC,recorded_at DESC,id DESC LIMIT 20',[project])).rows;
+    const observations=(await this.pool.query<RepositoryObservation>('SELECT * FROM repository_observations WHERE project_id=$1 AND ($2::uuid IS NULL OR id=$2) ORDER BY observed_at DESC,recorded_at DESC,id DESC LIMIT 20',[project,observation??null])).rows;
+    if (observation && !observations.length) throw notFound();
     return {available,target,observations};
   }
 

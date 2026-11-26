@@ -7,7 +7,7 @@ import { date, e, layout } from './views.ts';
 type State = Awaited<ReturnType<Repositories['state']>>;
 type Projects = Awaited<ReturnType<Core['listProjects']>>;
 
-function repositoryPage(projects: Projects, project: string, state: State) {
+function repositoryPage(projects: Projects, project: string, state: State, writable:boolean) {
   const path='/projects/'+project+'/repository';
   const target=state.target;
   const rows=state.observations.map(o=>{
@@ -28,11 +28,11 @@ function repositoryPage(projects: Projects, project: string, state: State) {
   }).join('');
   const directory=state.available.find(p=>p.key===target?.repository_key)?.directory;
   const registry=target ? `<p>${e(target.remote_url || 'Lecture locale uniquement')}${directory?' · <code>'+e(directory)+'</code>':''}</p>
-    <div class="actions"><form method="post" action="${path}/observe"><button>Observer le checkout</button></form>
+    ${writable?`<div class="actions"><form method="post" action="${path}/observe"><button>Observer le checkout</button></form>
     ${target.remote_url?`<form method="post" action="${path}/fetch"><label>Branche distante à comparer (facultatif)
     <input name="reference" maxlength="200" placeholder="Branche locale par défaut"></label>
-    <button>Récupérer les branches GitHub</button></form>`:''}</div>` :
-    state.available.length ? `<form action="${path}/register" method="post"><label>Dépôt autorisé
+    <button>Récupérer les branches GitHub</button></form>`:''}</div>`:''}` :
+    writable && state.available.length ? `<form action="${path}/register" method="post"><label>Dépôt autorisé
     <select name="key">${state.available.map(p=>`<option value="${e(p.key)}">${e(p.remote || p.directory)}</option>`).join('')}</select>
     </label><button>Enregistrer le dépôt</button></form>` : '<p>Aucun dépôt autorisé pour ce projet.</p>';
   return layout('Dépôt Git',`<a class="back" href="/projects/${project}">← Projet ${e(project.toUpperCase())}</a>
@@ -54,9 +54,9 @@ export async function repositoryRoute(
   if (!isProjectId(project)) throw new DomainError(404,'not_found','Projet introuvable.');
   const invalid=()=>new DomainError(400,'repository_input','Paramètres de dépôt inattendus.');
   if (req.method==='GET' && !action) {
-    const state=await core.repositories.state(actor,project);
+    const state=await core.repositories.state(actor,project,url.searchParams.get('observation')??undefined);
     res.setHeader('Content-Type',api?'application/json; charset=utf-8':'text/html; charset=utf-8');
-    res.end(api?JSON.stringify(state):repositoryPage(await core.listProjects(actor),project,state));
+    res.end(api?JSON.stringify(state):repositoryPage(await core.listProjects(actor),project,state,actor.accountRole!=='viewer'));
     return true;
   }
   if (req.method!=='POST' || !action) throw new DomainError(405,'method','Méthode indisponible.');

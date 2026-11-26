@@ -50,10 +50,10 @@ export function agentPage(projects: Projects, agents: AgentEntry[]) {
   const sections = projects.map(project => {
     const rows=agents.filter(a=>a.project===project.id).map(a=>{
       const activity = a.activity;
-      const availability = !activity?.last_seen ? 'Aucun contact' : activity.fresh ? 'Contact récent' : 'Contact ancien';
+      const availability = activity?.mission_id?'Occupé':activity?.fresh?'Connecté · disponible':activity?.last_seen?'Hors ligne':'Sans contact';
       return `<li><header><strong>${e(a.name)}</strong> · ${e(a.id)}</header><p>${e(a.description)}</p>
-        <p>${availability}${activity?.last_seen ? ' · '+date(activity.last_seen) : ''}${activity?.mission_id ? ' · '+missionLink(a.project,activity.mission_id,'Mission attribuée') : ''}</p>
-        <p>${activity?.attempts ?? 0} tentative(s) · ${activity?.completed ?? 0} remise(s) terminée(s)</p>
+        <p>${availability}${activity?.last_seen ? ' · '+date(activity.last_seen) : ''}${activity?.mission_id ? ` · <a href="/projects/${e(a.project)}/${activity.active_engine==='control'?'control':'missions'}/${e(activity.mission_id)}">Mission attribuée</a>` : ''}</p>
+        <p>${activity?.attempts ?? 0} tentative(s) · ${activity?.completed ?? 0} remise(s) terminée(s). Tâches démontrées · ${e(activity?.observed?.join(', ')||'aucune remise acceptée')}.</p>
         <details><summary>Capacités et runtime</summary><p>${e(a.runtime)} · Contrat ${e(a.version)} · Plafond IA 0 €</p>
         <ul>${a.capabilities.map(key=>`<li>${e(capabilityLabels[key])}</li>`).join('')}</ul></details></li>`;
     }).join('');
@@ -125,7 +125,10 @@ export function knowledgeDetail(projects: Projects, detail: Detail, canOperate =
     ${allowed.map(a=>`<button name="action" value="${a}">${e(actions[a])}</button>`).join('')}</div></form></section>`:''}
     ${canOperate && r.status!=='revoked'?`<details class="panel"><summary>Proposer une modification</summary><form class="stack" method="post" action="${path}">${version}
     ${contentFields(r)}<button name="action" value="edit">Soumettre à validation</button></form></details>`:''}
-    <section class="panel"><h2>Missions ayant utilisé cette fiche</h2>${uses.map(u=>`<p>${missionLink(r.project_id,u.mission_id,u.mission_id)} · v${u.version}</p>`).join('')||'<p>Aucune utilisation enregistrée.</p>'}</section>
+    <section class="panel"><h2>Missions ayant utilisé cette fiche</h2>${[...uses.map(u=>`<p>${missionLink(r.project_id,u.mission_id,u.mission_id)} · v${u.version}</p>`),...detail.controlUses.map(u=>`<p><a href="/projects/${e(r.project_id)}/control/${e(u.id)}">${e(u.objective)}</a> · v${u.version}</p>`)].join('')||'<p>Aucune utilisation enregistrée.</p>'}</section>
+    <section class="panel"><h2>Preuves reliées aux révisions</h2>${detail.evidence.attached.map(v=>`<p>v${v.version} · ${e(v.kind)} · <a href="${e(v.href)}">${e(v.title)}</a> · ${date(v.at)}</p>`).join('')||'<p>Aucune preuve reliée.</p>'}
+    ${canOperate && r.status==='proposed' && detail.evidence.choices.length?`<form method="post" action="${path}/evidence">${version}
+    <label>Preuve du projet<select name="selection">${detail.evidence.choices.map(v=>`<option value="${e(v.kind+'/'+v.id)}">${e(v.kind)} · ${e(v.title)}</option>`).join('')}</select></label><button>Relier à cette révision</button></form>`:''}</section>
     <section class="panel"><h2>Historique des versions</h2>${history.map(h=>`<details id="v${h.version}"><summary>v${h.version} · ${e(statuses[h.status])} · ${e(h.actor)} · ${date(h.at)}</summary>
     <strong>${e(h.title)}</strong><p class="prose">${e(h.content)}</p><p>${e(scopes[h.scope])}${h.confidence?' · '+e(confidenceLevels[h.confidence]):''} ${e(h.validity)}</p>${h.claim_key?`<p>${e(h.claim_key)} · ${e(h.claim_value)}</p>`:''}</details>`).join('')}</section>`,projects,r.project_id,true);
 }

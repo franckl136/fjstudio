@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { canonicalDocument } from './product-documents.ts';
+import { knowledgeEvidence } from './knowledge-evidence.ts';
 import type { Pool, PoolClient } from 'pg';
 import { assertId, assertProject, notFound, transaction } from './database.ts';
 import { DomainError, type FixtureId, type JsonObject, type Operator, type ProjectId } from './contracts.ts';
@@ -106,7 +107,11 @@ export class Knowledge {
       const related = (await client.query<{id:string;title:string}>('SELECT id,title FROM knowledge_current WHERE project_id=$1 AND related_id=$2 ORDER BY id',[project,id])).rows;
       const conflicts = (await client.query<Disagreement>(`SELECT * FROM knowledge_disagreements
         WHERE project_id=$1 AND (first_id=$2 OR second_id=$2) ORDER BY first_id,second_id`,[project,id])).rows;
-      return {item,history,uses,related,conflicts};
+      const controlUses=(await client.query<{id:string;objective:string;version:number}>(`SELECT m.id,m.objective,(k->>'version')::int AS version
+        FROM control_missions m CROSS JOIN LATERAL jsonb_array_elements(m.context) k
+        WHERE m.project_id=$1 AND k->>'id'=$2 ORDER BY m.created_at DESC`,[project,id])).rows;
+      const evidence=await knowledgeEvidence(client,project,id,item.status==='proposed' && actor.accountRole!=='viewer');
+      return {item,history,uses,controlUses,related,conflicts,evidence};
     },true);
   }
 
@@ -186,6 +191,11 @@ export class Knowledge {
       }
       await client.query(`INSERT INTO knowledge_revisions(project_id,knowledge_id,version,title,content,scope,status,actor,action,confidence,validity,claim_key,claim_value)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,[project,id,row.version+1,title,content,scope,status,actor.id,input.action,confidence,validity,claim.key,claim.value]);
+      if (input.action !== 'edit') {
+        await client.query(`INSERT INTO knowledge_evidence(project_id,knowledge_id,version,kind,evidence_id,actor,at)
+          SELECT project_id,knowledge_id,$3+1,kind,evidence_id,actor,at FROM knowledge_evidence
+          WHERE project_id=$1 AND knowledge_id=$2 AND version=$3`,[project,id,row.version]);
+      }
       return {id,version:row.version+1,status};
     });
   }
