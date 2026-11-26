@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { DomainError,isProjectId,type JsonObject,type Operator } from './contracts.ts';
 import { assertProject,notFound } from './database.ts';
 import { listWorkspaceProjects } from './product-workspace-projects.ts';
-import { layout,e } from './views.ts';
+import { layout,e,orderedProjects } from './views.ts';
 import { sources,readSource,versions,snapshot,importSource,revokeSource } from './explorer-store.ts';
 import { connectionChoices,refreshConnection } from './explorer-connections.ts';
 import { lastCodeScan,syncLinkedCode,syncProjectCode } from './explorer-code.ts';
@@ -57,7 +57,7 @@ export async function databaseRoute(pool:Pool,req:IncomingMessage,res:ServerResp
   const area=project?projects.find(p=>p.id===project)?.name:'Studio interne';
   const code=(await pool.query<{project_id:string;id:string;label:string}>(`SELECT project_id,id,label FROM explorer_sources
     WHERE project_id=ANY($1::text[]) AND created_by='studio-code' AND revoked_at IS NULL ORDER BY label`,[project?[project]:actor.projectIds])).rows;
-  const rows=projects.filter(p=>!project||p.id===project).map(p=>{
+  const rows=orderedProjects(projects).filter(p=>!project||p.id===project).map(p=>{
     const scan=lastCodeScan(pool,p.id);
     const links=code.filter(s=>s.project_id===p.id).map(s=>`<a href="/projects/${e(p.id)}/database?source=${s.id}">${e(s.label.replace(/^Code local · /,''))}</a>${scan&&!scan.sources.some(source=>source.id===s.id)?' (version antérieure)':''}`);
     return `<tr><th><a href="/projects/${e(p.id)}/database">${e(p.name)}</a></th><td>${e(scan?.status??(links.length?'Structure disponible':'En attente du relevé'))}</td><td>${links.join(' · ')||'—'}</td></tr>`;

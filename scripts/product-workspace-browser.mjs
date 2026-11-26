@@ -305,6 +305,9 @@ try {
   await writeFile(join(source,'schema.sql'),'CREATE TABLE atlas_room(id int PRIMARY KEY);');
   await operator.goto(origin+'/database');
   await submit(operator,operator.getByRole('button',{name:'Actualiser depuis le code'}));
+  const tableProjects=await operator.locator('#depots table tbody th a').allTextContents();
+  const menuProjects=await operator.locator('.sidebar .project-mark').evaluateAll(marks=>marks.map(mark=>mark.parentElement.textContent.replace(mark.textContent,'').trim()));
+  assert.deepEqual(tableProjects,menuProjects);
   const discovered=operator.locator('#depots').getByRole('link',{name:'schema.sql',exact:true});
   await discovered.click();
   await operator.getByRole('link',{name:'public.atlas_room',exact:true}).waitFor();
