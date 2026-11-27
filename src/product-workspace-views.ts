@@ -1,3 +1,4 @@
+import type { CodexAgent } from './codex-office.ts';
 import type { Operator, ProjectId } from './contracts.ts';
 import type { Desk, MissionDigest, Workspace } from './product-workspace.ts';
 import { agentPresence } from './product-workspace.ts';
@@ -156,7 +157,7 @@ export function workspacePage(data: Workspace, actor: Operator, filter: ProjectI
     <section id="attention" class="panel attention"><h2>À examiner</h2>
       ${alerts.length ? `<ul class="alert-feed">${alerts.join('')}</ul>` : '<p>Aucune validation ni alerte dans ce périmètre.</p>'}
       ${!alerts.length && topRepos.length?`<a href="/projects/${e(topRepos[0].project_id)}/repository">Consulter les changements de ${e(projectName(data,topRepos[0].project_id))} →</a>`:''}</section>
-    <section class="panel operational"><div class="office-preview"><div><h2>Agent Office</h2><p>${presence.registered} postes connus · ${presence.connected} connectés · ${presence.busy} occupés</p>
+    <section class="panel operational"><div class="office-preview"><div><h2>Agent Office</h2><p>${presence.registered} postes connus · Studio local · ${presence.connected} connectés · ${presence.busy} occupés</p>
       <a href="/office${filter?'?project='+e(filter):''}">Voir les postes →</a>
       ${data.cursorSessions.length?`<a class="cursor-shortcut" href="/office${filter?'?project='+e(filter):''}#cursor">Retrouver les sessions Cursor · ${new Set(data.cursorSessions.map(r=>r.agent_id)).size}</a>`:''}</div></div><details><summary>Exécution locale</summary>
       <dl class="facts"><dt>Core · PostgreSQL</dt><dd>Disponibles</dd>
@@ -192,7 +193,7 @@ function station(desk: Desk, data: Workspace, following:boolean, filter?: Projec
     <span class="station-text"><strong>${e(deskName(desk))}</strong><small>${label(desk.role)} · ${e(projectName(data,desk.projectId))}</small>${badge(desk.state)}
     ${task?'<span class="station-task">'+label(task.task)+'</span>':''}</span></a>`;
 }
-export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId, menu=data.projects) {
+export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId, menu=data.projects,codex:CodexAgent[]=[]) {
   const presence=agentPresence(data.agents);
   const includeInactive=query.get('inactifs')==='1';
   const visibility=new URLSearchParams(query);
@@ -208,14 +209,14 @@ export function officePage(data: Workspace, query: URLSearchParams, filter?: Pro
       ${members.length ? `<div class="station-group">${members.map(d => station(d,data,following,filter,includeInactive)).join('')}</div>` : '<div class="room-scene" aria-hidden="true"></div><p class="vacant">Aucun poste enregistré.</p>'}</section>`;
   };
   const reviews=data.alerts.filter(m=>m.status==='needs_approval'||m.status==='blocked').slice(0,4);
-  return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">${presence.connected} connectés · ${presence.available} disponibles · ${presence.busy} occupés · relevé ${date(data.capturedAt)}</p></div>
+  return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">Studio local · ${presence.connected} connectés · ${presence.available} disponibles · ${presence.busy} occupés · relevé ${date(data.capturedAt)}</p></div>
     ${projectFilter('/office',data,filter,query)}</header>
     ${filter?'':`<p>${includeInactive?'Tous les projets autorisés':'Projets actifs'} · <a href="/office?${e(visibility.toString())}">${includeInactive?'Masquer les projets inactifs':'Inclure les projets inactifs'}</a></p>`}
     <div class="office-controls"><a class="button" href="/office?${e(url.toString())}">${following ? 'Mettre en pause' : 'Reprendre le direct'}</a>
     <span id="office-live" role="status">${following ? 'Dernier relevé' : 'Suivi en pause'}</span>
     <a href="/office?${e(query.toString())}">Actualiser</a>
     ${data.cursorSessions.length?'<a class="jump-cursor" href="#cursor">Sessions Cursor ↓</a>':''}</div>
-    ${officeScene(data,d=>stationUrl(d,following,filter,includeInactive),query)}
+    ${officeScene(data,d=>stationUrl(d,following,filter,includeInactive),query,codex)}
     ${cursorDirectory(data.cursorSessions,data.projects)}
     <details id="postes-locaux" class="desk-directory" ${selected || query.get('liste')==='1' || data.agents.length<=4?'open':''}><summary>Postes locaux et affectations · ${data.agents.length}</summary>
     <div class="office-plan" data-follow="${following?'on':'off'}" aria-label="Plan de travail des agents">${stations('preparer')}${stations('verifier')}

@@ -30,3 +30,14 @@ test('Loft · quatre pièces issues des baux, aucun personnage hors ligne, un se
   assert.doesNotMatch(focus,/groupe=|Atelier classique/);
   assert.match(render('rendu=classique'),/data-floor-art/);
 });
+
+test('Cursor place une session par projet au café et garde les PR fusionnées en historique',()=>{
+  const pull={project_id:'demo',repository:'owner/demo',pr_number:9,agent_id:'bc-demo',title:'Mission',
+    branch:'cursor/demo',state:'draft' as const,observed_at:new Date()};
+  const cursorSessions=[pull,{...pull,pr_number:10},{...pull,agent_id:'bc-old',state:'merged' as const}];
+  const html=officeScene({agents:[],projects:[],cursorSessions},()=>'',new URLSearchParams());
+  assert.equal(html.split('data-member="cursor/demo/bc-demo"').length-1,1);
+  assert.match(html,/data-count="coffee">1</);
+  assert.match(html,/data-count="desks">0</);
+  assert.doesNotMatch(html,/bc-old/);
+});

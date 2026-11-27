@@ -74,6 +74,16 @@ function updateLoft(next) {
     }
   }
   for(const absent of previous.values())absent.remove();
+  const legend=loft.querySelector('.cursor-legend');
+  const nextLegend=next.querySelector('.cursor-legend');
+  if(legend && nextLegend && legend.innerHTML!==nextLegend.innerHTML)legend.innerHTML=nextLegend.innerHTML;
+  const directory=loft.querySelector('.codex-directory');
+  const nextDirectory=next.querySelector('.codex-directory');
+  if(directory && nextDirectory && directory.textContent!==nextDirectory.textContent){
+    const open=directory.querySelector('details')?.open;
+    directory.replaceChildren(...nextDirectory.cloneNode(true).childNodes);
+    if(open && directory.firstElementChild)directory.firstElementChild.open=true;
+  }
   let changed=false;
   for(const count of loft.querySelectorAll('[data-count]')){
     const value=next.querySelector('[data-count="'+count.dataset.count+'"]').textContent;

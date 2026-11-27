@@ -520,7 +520,7 @@ if(studio && paintFloor(studio)){
     }
     const count=studio.querySelector('.loft-people').children.length;
     const caption=studio.querySelector('[data-room-caption]');
-    caption.textContent=current.dataset.name?current.dataset.name+' · '+current.dataset.purpose:count+' agent'+(count===1?'':'s')+' en ligne';
+    caption.textContent=current.dataset.name?current.dataset.name+' · '+current.dataset.purpose:count+' agent'+(count===1?'':'s')+' dans le loft';
     for(const el of studio.querySelectorAll('.loft-people .pixel-person'))el.inert=current.dataset.camera!=='plan' && el.dataset.area!==current.dataset.camera;
     for(const link of document.querySelectorAll('.office-controls a,.loft-presence a,.sidebar [data-project-id],.sidebar [data-mobile-project]')){
       if(link.pathname!=='/office' || link.getAttribute('href').startsWith('#'))continue;

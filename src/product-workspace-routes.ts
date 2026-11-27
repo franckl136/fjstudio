@@ -1,3 +1,4 @@
+import { officeCodex } from './codex-office.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Pool } from 'pg';
 import { DomainError, isProjectId, type JsonObject, type Operator } from './contracts.ts';
@@ -87,7 +88,7 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
     }
     if(path==='/office' && !api && url.searchParams.get('loft')==='1') {
       const data=await readLoft(pool,visibleActor,io.runners??[],project);
-      io.html(res,200,officeScene(data,d=>stationUrl(d,url.searchParams.get('follow')!=='0',project,includeInactive),url.searchParams));
+      io.html(res,200,officeScene(data,d=>stationUrl(d,url.searchParams.get('follow')!=='0',project,includeInactive),url.searchParams,await officeCodex(pool,visibleActor,project)));
       return true;
     }
     const data = await readWorkspace(pool,visibleActor,io.runners ?? [],project);
@@ -95,7 +96,7 @@ export async function workspaceRoute(pool: Pool, req: IncomingMessage, res: Serv
       io.json(res,200,path === '/office' ? {capturedAt:data.capturedAt,agents:data.agents,cursorSessions:data.cursorSessions} : data);
     } else if (path === '/office') {
       const menu=visibleActor.projectIds.length===actor.projectIds.length?data.projects:await listWorkspaceProjects(pool,actor);
-      io.html(res,200,officePage(data,url.searchParams,project,menu));
+      io.html(res,200,officePage(data,url.searchParams,project,menu,await officeCodex(pool,visibleActor,project)));
     } else io.html(res,200,workspacePage(data,actor,project,await activityWeek(pool,actor,project),url.searchParams,io.hasArchives));
     return true;
   }
