@@ -193,8 +193,7 @@ function station(desk: Desk, data: Workspace, following:boolean, filter?: Projec
     <span class="station-text"><strong>${e(deskName(desk))}</strong><small>${label(desk.role)} · ${e(projectName(data,desk.projectId))}</small>${badge(desk.state)}
     ${task?'<span class="station-task">'+label(task.task)+'</span>':''}</span></a>`;
 }
-export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId, menu=data.projects,codex:CodexAgent[]=[]) {
-  const presence=agentPresence(data.agents);
+export function officePage(data: Workspace, query: URLSearchParams, filter?: ProjectId, menu=data.projects,codex:CodexAgent[]=[],codexUnavailable=false) {
   const includeInactive=query.get('inactifs')==='1';
   const visibility=new URLSearchParams(query);
   for (const key of ['station','stationProject','role']) visibility.delete(key);
@@ -209,7 +208,7 @@ export function officePage(data: Workspace, query: URLSearchParams, filter?: Pro
       ${members.length ? `<div class="station-group">${members.map(d => station(d,data,following,filter,includeInactive)).join('')}</div>` : '<div class="room-scene" aria-hidden="true"></div><p class="vacant">Aucun poste enregistré.</p>'}</section>`;
   };
   const reviews=data.alerts.filter(m=>m.status==='needs_approval'||m.status==='blocked').slice(0,4);
-  return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">Studio local · ${presence.connected} connectés · ${presence.available} disponibles · ${presence.busy} occupés · relevé ${date(data.capturedAt)}</p></div>
+  return layout('Agent Office',`<header class="product-heading"><div><h1>Agent Office</h1><p id="office-reading">Dernier relevé · ${date(data.capturedAt)}${codexUnavailable?' · Relevé Codex local incomplet':''}</p></div>
     ${projectFilter('/office',data,filter,query)}</header>
     ${filter?'':`<p>${includeInactive?'Tous les projets autorisés':'Projets actifs'} · <a href="/office?${e(visibility.toString())}">${includeInactive?'Masquer les projets inactifs':'Inclure les projets inactifs'}</a></p>`}
     <div class="office-controls"><a class="button" href="/office?${e(url.toString())}">${following ? 'Mettre en pause' : 'Reprendre le direct'}</a>
