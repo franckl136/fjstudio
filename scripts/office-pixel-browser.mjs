@@ -69,6 +69,10 @@ async function probe(width,height,mode='atlas') {
       assert.equal(await art.count(),1);
     }
     await first.click();
+    if(mode!=='sans-js'){
+      const profile=page.locator('details[data-profile][open]');
+      await profile.getByRole('link',{name:'Ouvrir le poste'}).click();
+    }
     assert.match(page.url(),/station=agent-0#poste/);
     assert.deepEqual(errors,[]);
   } finally { await context.close(); }

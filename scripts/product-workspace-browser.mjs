@@ -295,6 +295,7 @@ try {
   assert.equal(await operator.locator('.pixel-loft .loft-person[data-area=control]').count(),1);
   const figure=operator.locator('.pixel-loft .loft-person[data-area=desks]');
   await figure.click();
+  await operator.locator('details[data-profile][open]').getByRole('link',{name:'Ouvrir le poste'}).click();
   const assignedMission=operator.locator('section#poste').getByRole('link',{name:'Qualifier le dossier catalogue',exact:true});
   await assignedMission.waitFor({state:'visible'});
   assert.equal(await assignedMission.getAttribute('href'),missionPath);

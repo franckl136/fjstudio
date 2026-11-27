@@ -1,0 +1,36 @@
+{
+  "browser": "158.0.8127.89",
+  "measuredAt": "2026-11-27T10:16:01.071Z",
+  "rows": [
+    {
+      "count": 4,
+      "readyMs": 146.3,
+      "peakWalking": 1,
+      "medianFrameMs": 2.8,
+      "p95FrameMs": 2.9,
+      "frameSample": 539,
+      "rendererBusyPct": 5.9,
+      "hiddenTaskMs": 0.4
+    },
+    {
+      "count": 36,
+      "readyMs": 204.8,
+      "peakWalking": 33,
+      "medianFrameMs": 2.8,
+      "p95FrameMs": 2.9,
+      "frameSample": 540,
+      "rendererBusyPct": 10.5,
+      "hiddenTaskMs": 0.7
+    },
+    {
+      "count": 100,
+      "readyMs": 183.1,
+      "peakWalking": 97,
+      "medianFrameMs": 2.8,
+      "p95FrameMs": 2.9,
+      "frameSample": 538,
+      "rendererBusyPct": 14.9,
+      "hiddenTaskMs": 1.2
+    }
+  ]
+}

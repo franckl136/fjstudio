@@ -1,5 +1,11 @@
 # Historique du Studio
 
+## En développement · Agent Office 2.0
+
+- Le plan distingue les postes en mission, les signaux récents de Codex, les sessions historiques et les présences inconnues. Les fiches relient agent, projet, mission, journal et preuves.
+- La caméra, les places inspectables et les déplacements sur des chemins franchissables permettent de suivre un personnage entre quatre pièces. Le mode Ambiance fait évoluer quatre figurants locaux.
+- Le [guide du loft](docs/agent-office/08-guide-utilisateur.md) et la [recette illustrée](docs/agent-office/07-recette.md) accompagnent la branche de développement.
+
 ## 0.4.0-rc.5 · Candidate de développement · 26 novembre 2026
 
 - Cinq faits marquants au plus sur l’accueil. Le journal détaillé conserve les preuves, affiche dix lignes par page, les filtres et les commandes de navigation en tête.
