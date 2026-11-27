@@ -16,6 +16,7 @@ export type AssignmentRecord = {
 type Progress = {project_id: ProjectId; state: string; total: number};
 type Lab = {project_id: ProjectId; id: string; profile: string; source_key: string; state: string; verdict: string | null; created_at: Date};
 export type Desk = DeskIdentity & {
+  contactFresh?: boolean;
   lastSeen: Date | null; state: 'unseen' | 'offline' | 'available' | 'working' | 'verifying';
   records: AssignmentRecord[]; running: number; configured: boolean;
 };
@@ -76,6 +77,7 @@ async function desks(client: PoolClient, ids: readonly ProjectId[], configured: 
   for (const contact of contacts) {
     const desk = ensure({projectId: contact.project_id, id: contact.runner_id, role: contact.role});
     desk.lastSeen = contact.at;
+    Object.defineProperty(desk,'contactFresh',{value:contact.fresh});
     desk.state = contact.fresh ? 'available' : 'offline';
   }
   for (const record of records) {

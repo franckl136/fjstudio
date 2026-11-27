@@ -1,15 +1,8 @@
-import type { CursorPull } from './cursor-sessions.ts';
 import type { CodexAgent } from './codex-office.ts';
-import type { Desk } from './product-workspace.ts';
+import type { Desk, AssignmentRecord } from './product-workspace.ts';
+import { officePopulation, rooms, taskRoom, type OfficeData, type Resident } from './office-population.ts';
 import { date,e } from './views.ts';
-
-type OfficeData={cursorSessions?:readonly CursorPull[];agents:readonly Desk[];projects:readonly {id:string;name:string}[]};
-
-export function deskName(d:Desk) {
-  if(d.id.startsWith('scribe-')) return 'Documentaliste';
-  if(d.id.startsWith('controle-')) return 'Vérificateur';
-  return d.id;
-}
+export { deskName } from './office-population.ts';
 const taskNames:Record<string,string>={structure:'Index du document',coverage:'Vérification des critères',synthesis:'Synthèse des deux preuves'};
 function historyPanel(data:OfficeData) {
   // A replay uses accepted attempts of one completed synthesis, including its own project and mission.
@@ -30,61 +23,71 @@ function loftUrl(query:URLSearchParams,fields:Record<string,string|null>) {
   return '/office?'+e(params.toString())+'#loft';
 }
 
-const rooms=[
-  {id:'desks',slug:'bureau',name:'Bureau',purpose:'Préparation des livrables'},
-  {id:'coffee',slug:'cafe',name:'Café',purpose:'Agents disponibles'},
-  {id:'meeting',slug:'reunion',name:'Salle de réunion',purpose:'Synthèse des résultats'},
-  {id:'control',slug:'controle',name:'Salle de contrôle',purpose:'Vérification des critères'},
-] as const;
-type Room=typeof rooms[number]['id'];
-function observedRoom(d:Desk):Room {
-  const active=d.records.find(r=>r.live);
-  if(!active) return 'coffee';
-  if(active.task==='synthesis') return 'meeting';
-  return active.role==='verifier'?'control':'desks';
-}
-function avatar(d:Desk,data:OfficeData,area:Room,seat:number,stationLink:(d:Desk)=>string) {
-  const name=deskName(d),project=data.projects.find(p=>p.id===d.projectId)?.name??d.projectId;
-  const title=name+' · '+project;
-  const recent=d.records.filter(r=>r.finished).map(r=>({id:r.id,area:r.task==='synthesis'?'meeting':r.role==='verifier'?'control':'desks',at:Number(r.finished)}));
-  return `<a class="pixel-person loft-person" data-member="${e(d.projectId+'/'+d.id+'/'+d.role)}"
-    data-area="${area}" data-seat="${seat}" data-live="${e(d.records.find(r=>r.live)?.id??'')}" data-recent="${e(JSON.stringify(recent))}" title="${e(title)}" aria-label="Ouvrir le poste · ${e(title)}" href="${e(stationLink(d))}"><span class="pixel-label">${e(title)}<small class="fallback-room"> · ${e(rooms.find(room=>room.id===area)?.name)}</small></span></a>`;
-}
 
-const codexState={working:'Activité récente',finished:'Tour terminé',recent:'Présence non confirmée'};
-function codexAvatar(a:CodexAgent,area:Room,seat:number){
-  const title='Codex · '+a.name+' · '+a.project+' · '+codexState[a.state];
-  return `<a class="pixel-person loft-person" data-member="codex/${e(a.id)}" data-area="${area}" data-seat="${seat}" data-live="" data-recent="[]" href="#codex-${e(a.id)}" title="${e(title)}" aria-label="${e(title)}"><span class="pixel-label">Codex · ${e(a.name)}</span></a>`;
+const profileId=(r:Resident)=>'profil-'+encodeURIComponent(r.key).replaceAll('%','_');
+const labelOf=(r:Resident)=>r.provider==='Codex'?'Codex · '+r.name:r.name;
+const stages:Record<string,string>={running:'En cours',active:'En cours',completed:'Terminée',succeeded:'Réussie',failed:'Échec',expired:'Bail expiré',cancelled:'Annulée',interrupted:'Interrompue'};
+const pullStates={draft:'Brouillon',open:'Ouverte',closed:'Fermée',merged:'Fusionnée'};
+function missionPath(record:AssignmentRecord){
+  return '/projects/'+encodeURIComponent(record.project_id)+(record.engine==='control'?'/control/':'/missions/')+encodeURIComponent(record.mission_id);
 }
-function cursorAvatar(session:CursorPull,seat:number){
-  const label='Cursor · PR #'+session.pr_number;
-  const title=label+' · '+session.project_id+' · '+session.title+' · activité inconnue';
-  return `<a class="pixel-person loft-person" data-member="cursor/${e(session.project_id)}/${e(session.agent_id)}"
-    data-area="coffee" data-seat="${seat}" data-live="" data-recent="[]" title="${e(title)}" aria-label="${e(title)}"
-    href="https://cursor.com/agents/${e(session.agent_id)}" target="_blank" rel="noopener noreferrer"><span class="pixel-label">${e(label)}</span></a>`;
+function avatar(r:Resident,seat:number,stationLink:(d:Desk)=>string,project:string) {
+  const id=profileId(r),title=labelOf(r)+' · '+project+' · '+r.status;
+  const recent=r.desk?.records.filter(t=>t.finished).map(t=>({id:t.id,area:taskRoom(t),at:Number(t.finished)}))??[];
+  const fallback=r.desk?stationLink(r.desk):'#'+id;
+  return `<a class="pixel-person loft-person" data-member="${e(r.key)}" data-area="${r.room}" data-pose="${r.pose}"
+    id="visuel-${id}" data-profile-link="${id}" data-seat="${seat}" data-live="${e(r.desk?.records.find(t=>t.live)?.id??'')}" data-recent="${e(JSON.stringify(recent))}" title="${e(title)}" aria-label="Ouvrir la fiche · ${e(title)}" href="${e(fallback)}"><span class="pixel-label">${e(labelOf(r))}<small class="fallback-room"> · ${e(r.status)}</small></span></a>`;
 }
+function profile(r:Resident,project:string,stationLink:(d:Desk)=>string){
+  const id=profileId(r),projectPath='/projects/'+encodeURIComponent(r.project),desk=r.desk;
+  const records=desk?.records??[],room=rooms.find(room=>room.id===r.room);
+  const mission=records.find(t=>t.live);
+  return `<details data-profile="${id}" id="${id}" data-provider="${r.provider}" data-location="${r.room??'away'}">
+    <summary><strong>${e(labelOf(r))}</strong> · ${e(project)} · ${e(r.status)}</summary>
+    <div class="loft-profile-body"><dl class="facts">
+    <dt>Identité</dt><dd>${desk?'Runner · '+e(desk.id):'Session '+r.provider+' · '+e(r.codex?.id??r.pulls?.[0].agent_id)}</dd>
+    <dt>Source</dt><dd>${e(r.source)}</dd>
+    <dt>Projet</dt><dd><a href="${e(projectPath)}">${e(project)}</a></dd>
+    <dt>Emplacement</dt><dd>${room?e(room.name):'Hors scène'}</dd>
+    ${r.stamp?`<dt>${r.pulls?'Relevé GitHub':r.codex?'Dernier signal':'Dernier contact'}</dt><dd>${date(r.stamp)}</dd>`:''}
+    ${mission?`<dt>Mission en cours</dt><dd><a href="${e(missionPath(mission))}">${e(mission.objective??mission.mission_id)}</a></dd>`:''}</dl>
+    ${records.length?`<h4>Affectations observées</h4><ul>${records.map(t=>`<li><a href="${e(missionPath(t))}">${e(t.objective??t.mission_id)}</a> · ${e(taskNames[t.task]??t.task)} · ${e(stages[t.state]??t.state)} · ${date(t.finished??t.began)}</li>`).join('')}</ul>`:''}
+    ${r.pulls?`<ul>${r.pulls.map(p=>`<li><a href="https://github.com/${e(p.repository)}/pull/${p.pr_number}" rel="noopener noreferrer" target="_blank">PR #${p.pr_number} · ${e(p.title)}</a> · ${pullStates[p.state]}</li>`).join('')}</ul><a href="https://cursor.com/agents/${e(r.pulls[0].agent_id)}" rel="noopener noreferrer" target="_blank">Ouvrir la session Cursor ↗</a>`:''}
+    <div class="actions">${desk?`<a href="${e(stationLink(desk))}">Ouvrir le poste</a>`:''}
+    <a href="/activity?project=${encodeURIComponent(r.project)}">Journal du projet</a>
+    ${mission?`<a href="${e(missionPath(mission))}">Mission et preuves</a><a href="/workspace?project=${encodeURIComponent(r.project)}">Command Center</a>`:''}
+    ${room?`<a data-return-agent="${id}" href="#visuel-${id}">Retrouver le personnage</a>`:''}</div></div></details>`;
+}
+const metricNames={
+  connected:'Connectés au Studio',busy:'En mission Studio',available:'Disponibles',paused:'En pause',
+  offline:'Hors ligne',historical:'Sessions historiques',unknown:'État inconnu',
+};
 export function officeScene(data:OfficeData,stationLink:(d:Desk)=>string,query:URLSearchParams,codex:CodexAgent[]=[]) {
   const focus=rooms.find(r=>r.slug===query.get('salle'))?.id??'plan';
-  const active=data.agents.filter(d=>d.state==='working'||d.state==='verifying'||d.state==='available');
-  const cursor=new Map<string,CursorPull>();
-  for(const row of data.cursorSessions??[]){
-    if(row.state==='draft'||row.state==='open')cursor.set(row.project_id+'/'+row.agent_id,row);
-  }
-  const groups=rooms.map(room=>({...room,cursor:room.id==='coffee'?[...cursor.values()]:[],codex:codex.filter(a=>(a.state==="working"?"desks":"coffee")===room.id),members:active.filter(d=>observedRoom(d)===room.id)}));
+  const {residents,metrics}=officePopulation(data,codex);
+  const projects=new Map(data.projects.map(p=>[p.id,p.name]));
+  const groups=rooms.map(room=>({...room,members:residents.filter(r=>r.room===room.id)}));
   const roomLink=(slug:string|null)=>loftUrl(query,{salle:slug});
   const selected=groups.find(room=>room.id===focus);
+  const total=groups.reduce((count,room)=>count+room.members.length,0);
   return `<section id="loft" class="loft panel pixel-loft" data-focus="${focus}">
     <link rel="stylesheet" href="/office-assets/pixel-office.css"><script src="/office-assets/pixel-office.js" defer></script>
-    <header class="section-head"><div><h2>Le loft du Studio</h2><p>Suivez les affectations entre les quatre pièces. Cliquez sur un agent pour ouvrir son poste.</p></div>
+    <header class="section-head"><div><h2>Le loft du Studio</h2><p>Cliquez sur un personnage pour consulter sa fiche et ses affectations.</p></div>
     <button class="loft-expand" type="button" aria-pressed="false" hidden>⛶ Agrandir</button></header>
+    <div class="loft-toolbar" aria-label="Mode de représentation"><button type="button" hidden data-mode="real" aria-pressed="true">Activité réelle</button><button type="button" hidden data-mode="ambient" aria-pressed="false">Ambiance simulée</button><span>Figurants · <strong data-ambient-count>0</strong></span></div>
+    <dl class="loft-metrics">${Object.entries(metricNames).map(([key,name])=>`<div><dt>${name}</dt><dd data-metric="${key}">${metrics[key as keyof typeof metrics]??'Non renseigné'}</dd></div>`).join('')}</dl>
     <nav class="room-tabs" aria-label="Pièces du loft"><a data-camera="plan" href="${roomLink(null)}"${focus==='plan'?' aria-current="page"':''}>Plan complet</a>
-    ${groups.map(room=>`<a data-camera="${room.id}" data-name="${e(room.name)}" data-purpose="${e(room.purpose)}" href="${roomLink(room.slug)}"${focus===room.id?' aria-current="page"':''}>${room.name} <span data-count="${room.id}">${room.members.length+room.codex.length+room.cursor.length}</span></a>`).join('')}</nav>
+    ${groups.map(room=>`<a data-camera="${room.id}" data-name="${e(room.name)}" data-purpose="${e(room.purpose)}" href="${roomLink(room.slug)}"${focus===room.id?' aria-current="page"':''}>${room.name} <span data-count="${room.id}">${room.members.length}</span></a>`).join('')}</nav>
     <div class="pixel-campus"><div class="pixel-floor"><canvas width="1520" height="824" data-floor-art aria-hidden="true"></canvas>
-      <div class="loft-people">${groups.flatMap(room=>[...room.members.map((d,i)=>avatar(d,data,room.id,i,stationLink)),...room.codex.map((a,i)=>codexAvatar(a,room.id,room.members.length+i)),...room.cursor.map((a,i)=>cursorAvatar(a,room.members.length+room.codex.length+i))]).join('')}</div>
+      <div class="loft-people">${groups.flatMap(room=>room.members.map((r,i)=>avatar(r,i,stationLink,projects.get(r.project)??r.project))).join('')}</div>
     </div></div>
-    <div class="loft-presence"><div data-room-caption>${selected?`<strong>${selected.name}</strong> · ${selected.purpose}`:`<strong>${active.length+codex.length+cursor.size} dans le loft</strong>`}</div>
+    <div class="loft-presence"><div data-room-caption>${selected?`<strong>${selected.name}</strong> · ${selected.purpose}`:`<strong>${total} dans le loft</strong>`}</div>
+      <a href="#annuaire-loft" data-show-directory>Liste des agents</a>
       <a href="${loftUrl(query,{liste:'1'}).replace(/#loft$/,'#postes-locaux')}">Liste des postes ↓</a></div>
-    <div class="cursor-legend">${cursor.size?`<p>Cursor · ${cursor.size} session(s) liée(s) à une PR ouverte ou en brouillon au dernier relevé. Au café, activité inconnue. Cliquez sur un avatar pour ouvrir sa session Cursor.</p>`:''}</div>
-    <div class="codex-directory">${codex.length?`<details><summary>Agents Codex · ${codex.length}</summary><p>Sessions de ce dossier observées depuis 24 h. Un signal de travail récent place l’agent au bureau. Après un tour terminé ou sans signal récent, il apparaît au café.</p><ul>${codex.map(a=>`<li id="codex-${e(a.id)}"><strong>${e(a.name)}</strong> · ${e(a.project)} · ${codexState[a.state]}</li>`).join('')}</ul></details>`:''}</div>
+    <div class="loft-occupants">${groups.map(room=>`<div data-room-occupants="${room.id}"${room.id!==focus?' hidden':''}><strong>${e(room.name)} · occupants</strong>
+    ${room.members.length?`<ul>${room.members.map(r=>`<li><a data-profile-link="${profileId(r)}" href="#${profileId(r)}">${e(labelOf(r))}</a> · ${e(r.status)}</li>`).join('')}</ul>`:'<p>Aucune présence observée.</p>'}</div>`).join('')}</div>
+    <details id="annuaire-loft" class="loft-directory"><summary>Agents et sessions · <span data-directory-total>${residents.length}</span></summary>
+    <label hidden data-provider-control>Outil <select data-provider-filter><option value="">Tous les outils</option><option>Studio</option><option>Codex</option><option>Cursor</option></select></label>
+    <div class="loft-profiles">${residents.map(r=>profile(r,projects.get(r.project)??r.project,stationLink)).join('')}</div><p data-empty-directory ${residents.length?'hidden':''}>Aucune fiche dans cette sélection.</p></details>
     ${historyPanel(data)}<span class="loft-caption" role="status"></span></section>`;
 }

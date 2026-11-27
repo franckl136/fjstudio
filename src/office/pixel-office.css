@@ -45,3 +45,98 @@
 .pixel-loft[data-focus=desks] .pixel-floor:not(.pixel-ready) .pixel-person:not([data-area=desks]),
 .pixel-loft[data-focus=control] .pixel-floor:not(.pixel-ready) .pixel-person:not([data-area=control]),
 .pixel-loft[data-focus=meeting] .pixel-floor:not(.pixel-ready) .pixel-person:not([data-area=meeting]) {display:none;}
+
+/* The viewport owns the camera. DOM links keep native focus and touch activation. */
+.pixel-loft.panel {--loft-ink:#24473e;--loft-copper:#e7b877;--loft-paper:#fbf5e6;overflow:clip;background:var(--loft-paper);box-shadow:0 8px 28px #20372f16;}
+.pixel-loft .section-head {background:linear-gradient(110deg,#203e38,#315447);border-color:#d2a765;}
+.pixel-loft .section-head p {color:#e9e9d5;}
+.pixel-loft .camera-tools {display:flex;align-items:center;justify-content:flex-end;gap:.3rem;padding:.38rem .8rem;color:#e8efd9;background:#24423e;}
+.camera-tools button,.camera-tools output {font:600 .8rem/1.35 system-ui;font-variant-numeric:tabular-nums;}
+.pixel-loft .camera-tools button {color:#fcf2d9;background:#32534a;border:1px solid #6d8977;border-radius:.35rem;padding:.2rem .65rem;min-height:2rem;}
+.pixel-loft .camera-tools button:disabled {opacity:.48;}
+.camera-tools output {text-align:center;min-width:3.5rem;}
+.pixel-campus {position:relative;outline-offset:-3px;}
+.pixel-campus.can-pan {cursor:grab;touch-action:none;}
+.pixel-campus.can-pan:active {cursor:grabbing;}
+.pixel-campus .pixel-ready,.pixel-loft:not([data-focus=plan]):not([data-replay]) .pixel-ready {transform:translate(var(--scene-pan-x,0px),var(--scene-pan-y,0px)) scale(calc(var(--scene-zoom,1) * var(--room-scale,1)));transform-origin:var(--camera-x,50%) var(--camera-y,50%);}
+.pixel-loft:not([data-focus=plan]):not([data-replay]) {--room-scale:1.83;}
+.pixel-ready .loft-simulation,.scene-lights {position:absolute;inset:0;pointer-events:none;}
+.pixel-ready [data-simulation] {pointer-events:none;}
+.pixel-loft[data-scene-mode=ambient] .loft-people,.pixel-loft[data-scene-mode=ambient] .loft-playback,.pixel-loft[data-scene-mode=ambient] .room-tabs [data-count],.pixel-loft:not([data-scene-mode=ambient]) .sim-count {display:none;}
+.scene-lights {z-index:1;}
+.scene-lights i {position:absolute;display:block;}
+.light-steam {width:.45%;height:1.5%;border-left:2px solid #ffe6bd;border-top:2px solid #ffe6bd;opacity:.72;animation:loft-steam 2.8s steps(7,end) infinite;}
+.light-signal {width:.45%;height:.48%;background:#b8e8c6;animation:loft-lamp 4.1s steps(2,end) infinite;}
+.light-lamp {width:1.7%;height:.4%;background:#ffdf95;animation:loft-lamp 5.3s steps(3,end) infinite;}
+@keyframes loft-steam {0%{opacity:0;translate:0 0;}30%{opacity:.65;}100%{opacity:0;translate:3px -10px;}}
+@keyframes loft-lamp {50%{opacity:.35;}}
+.scene-paused .scene-lights i {animation-play-state:paused;}
+.pixel-ready .pixel-person[aria-current=true] {outline:2px solid #ffe4a1;outline-offset:1px;background:#32524e48;}
+.pixel-loft :is(a,button,summary,[tabindex]):focus-visible {outline:3px solid #c05e35;outline-offset:2px;}
+.pixel-ready .pixel-person:focus-visible {outline-color:#ffe1a3;outline-offset:2px;}
+.loft-metrics {display:flex;flex-wrap:wrap;gap:.45rem .9rem;align-items:baseline;margin:.65rem 1rem;}
+.loft-metrics>div {display:grid;gap:.15rem;padding:.45rem .6rem;border-left:3px solid #90ab8b;background:#eeeeda;}
+.loft-metrics dt {font-size:.78rem;}
+.loft-metrics dd {margin:0;font-weight:bold;font-variant-numeric:tabular-nums;}
+.loft-toolbar {display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;padding:.5rem .8rem;}
+.loft-toolbar [aria-pressed=true] {background:#285345;color:#fff2cf;}
+.loft-directory,.loft-profiles {margin:.8rem 1rem;}
+.loft-profiles details {border-bottom:1px solid #c7cdb7;padding:.45rem 0;scroll-margin-block:1rem;}
+.pixel-loft:fullscreen {width:100vw;height:100dvh;overflow:auto;display:block;background:#edf0e0;border:0;}
+.pixel-loft:fullscreen .pixel-campus {max-width:min(100%,145vh);margin:auto;}
+@media(max-width:600px){
+  .pixel-loft .room-tabs {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+  .pixel-loft .room-tabs a {min-height:44px;justify-content:space-between;}
+  .pixel-loft .room-tabs a:first-child {grid-column:1/-1;justify-content:center;}
+  .pixel-loft .camera-tools {justify-content:center;}
+  .pixel-loft .camera-tools button,.pixel-loft .loft-toolbar button,.pixel-loft summary {min-height:44px;}
+  .pixel-loft .loft-metrics {gap:.35rem;margin:.5rem;}
+  .pixel-loft .loft-metrics>div {padding:.25rem .45rem;}
+  .pixel-ready .pixel-label {font-size:.65rem;}
+}
+@media(prefers-reduced-motion:reduce){.scene-lights i{animation:none!important;}}
+.room-pins {position:absolute;inset:0;pointer-events:none;}
+.pixel-loft .room-pins button {position:absolute;pointer-events:auto;z-index:1;min-height:0;padding:.17em .55em;border:1px solid #607469;border-left:3px solid var(--pin-color);border-radius:0;background:#183435;color:#fff1cb;box-shadow:2px 2px #182c2c;font:700 clamp(.42rem,1vw,.8rem)/1.1 monospace;letter-spacing:.03em;}
+.pixel-loft:not([data-focus=plan]) .room-pins {display:none;}
+.pixel-loft[data-scene-mode=ambient] :is(.loft-metrics,.loft-occupants,.loft-history) {display:none;}
+.loft-occupants {padding:0 1rem;}
+.loft-directory>summary,.loft-profiles summary {cursor:pointer;}
+.loft-directory>summary {border-top:1px solid #bcc8b4;font-weight:bold;padding:.7rem 0;}
+.loft-profiles summary {padding:.4rem;}
+.loft-profiles details[open] {background:#fffaf0;border:1px solid #acb9a5;padding:.5rem .8rem;}
+.loft-profile-body .facts {display:grid;grid-template-columns:minmax(6rem,auto) 1fr;gap:.3rem .85rem;}
+.loft-profile-body .facts dt {color:#4f6459;}
+.loft-profile-body .facts dd {margin:0;overflow-wrap:anywhere;}
+@media(max-width:600px){.room-pins {display:none;}}
+@media(max-width:600px){
+  .pixel-loft[data-focus=plan] .room-pins {display:block;}
+  .pixel-loft .room-pins button {min-height:0;font-size:.44rem;pointer-events:none;}
+}
+/* Match the paper surface of the inspector across the global light/dark office styles. */
+.pixel-loft .loft-directory,.pixel-loft .loft-occupants,.pixel-loft .loft-profile-body {color:#203c34;}
+.pixel-loft :is(.loft-directory,.loft-occupants) a {color:#184e43;text-decoration:underline;text-underline-offset:.16em;}
+.pixel-loft :is(.loft-directory,.loft-occupants) a:hover {color:#803c2a;}
+.pixel-loft .loft-profiles summary {color:#214638;}
+.pixel-loft .loft-profile-body .facts dd {text-align:left;}
+.pixel-loft .loft-profile-body h4 {color:#29453a;margin:.8rem 0 .2rem;}
+.pixel-loft .loft-profile-body li {overflow-wrap:anywhere;}
+.pixel-loft .loft-profile-body .actions a {display:inline-flex;align-items:center;min-height:2.5rem;}
+.pixel-loft [data-provider-control][hidden] {display:none;}
+@media(max-width:600px){
+  .pixel-loft .loft-profile-body .facts {grid-template-columns:minmax(0,1fr);gap:.1rem;}
+  .pixel-loft .loft-profile-body .facts dd {margin-bottom:.5rem;}
+  .pixel-loft .loft-profile-body .actions a {min-height:44px;}
+}
+.pixel-loft :is(.loft-occupants,.loft-directory,.station-inspection) a {color:#1e5344;text-decoration:underline;text-underline-offset:.15em;}
+.pixel-loft :is(.loft-occupants,.loft-directory,.station-inspection) a:hover {color:#813e28;}
+.pixel-loft .loft-directory .actions a {color:#1e5344;background:#f5f2e2;border-color:#788c78;}
+.station-pins {position:absolute;inset:0;pointer-events:none;}
+.pixel-loft .station-pin {position:absolute;pointer-events:auto;transform:translate(-50%,-50%);border:1px solid #fbdda0;box-shadow:1px 1px 0 #152d2d;padding:0;width:1.22rem;height:1.22rem;min-height:0;line-height:1;text-align:center;border-radius:50%;background:#24463c;color:#fff0c8;font:bold .68rem/1 monospace;}
+.pixel-loft .station-pin::before {content:'';position:absolute;inset:-.34rem;}
+.pixel-loft .station-pin[aria-expanded=true] {outline:2px solid #ffe7a7;outline-offset:1px;}
+.pixel-loft .station-inspection {position:relative;padding:.75rem 5rem .75rem 1rem;color:#24483c;background:#f1eddb;border-left:4px solid #ba8a53;}
+.pixel-loft .station-inspection h3 {margin:0;color:#24483c;font-size:1rem;}
+.pixel-loft .station-inspection p {margin:.25rem 0;}
+.pixel-loft .station-inspection button {position:absolute;right:.45rem;top:.45rem;}
+.pixel-loft [hidden] {display:none!important;}
+@media(pointer:coarse){.pixel-loft .station-pin::before {inset:50% auto auto 50%;transform:translate(-50%,-50%);width:44px;height:44px;}}

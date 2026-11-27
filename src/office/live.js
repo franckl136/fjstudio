@@ -38,7 +38,7 @@ historyPanel.addEventListener('click',event=>{
   const steps=Array.from(historyPanel.querySelectorAll('li[data-member]'));
   if(!steps.length) return;
   loft.dataset.replay='';
-  button.textContent='Terminer la relecture';
+  button.textContent='Terminer la relecture historique';
   const layer=document.createElement('div');
   layer.className='loft-playback';layer.setAttribute('aria-hidden','true');
   loft.querySelector('.pixel-floor').append(layer);
@@ -55,6 +55,90 @@ historyPanel.addEventListener('click',event=>{
   }
   show(0);
 });
+const directory=loft.querySelector('.loft-directory');
+const profiles=directory.querySelector('.loft-profiles');
+const providerFilter=directory.querySelector('[data-provider-filter]');
+directory.querySelector('[data-provider-control]').hidden=false;
+let selectedProfile=null;
+function showFilter(){
+  let visible=0;
+  for(const profile of profiles.children){
+    profile.hidden=Boolean(providerFilter.value && profile.dataset.provider!==providerFilter.value);
+    if(!profile.hidden)visible++;
+  }
+  directory.querySelector('[data-empty-directory]').hidden=visible>0;
+}
+function markSelection(id){
+  selectedProfile=id;
+  for(const avatar of loft.querySelectorAll('.loft-people [data-profile-link]')){
+    if(avatar.dataset.profileLink===id)avatar.setAttribute('aria-current','true');
+    else avatar.removeAttribute('aria-current');
+  }
+}
+providerFilter.addEventListener('change',showFilter);
+profiles.addEventListener('toggle',event=>{
+  const card=event.target.closest('[data-profile]');
+  if(!card)return;
+  if(card.open)markSelection(card.id);
+  else if(selectedProfile===card.id)markSelection(null);
+},true);
+loft.addEventListener('click',event=>{
+  if(event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)return;
+  const link=event.target.closest('a');
+  if(!link)return;
+  if(link.hasAttribute('data-show-directory')){
+    directory.open=true;
+    directory.querySelector('summary').focus();
+  }
+  if(link.dataset.returnAgent){
+    const avatar=document.getElementById('visuel-'+link.dataset.returnAgent);
+    if(!avatar)return;
+    event.preventDefault();
+    if(avatar.inert)loft.querySelector('[data-camera="'+avatar.dataset.area+'"]')?.click();
+    avatar.focus();
+    return;
+  }
+  const card=document.getElementById(link.dataset.profileLink??'');
+  if(!card || !profiles.contains(card))return;
+  event.preventDefault();
+  directory.open=true;
+  if(card.hidden){providerFilter.value='';showFilter();}
+  for(const other of profiles.querySelectorAll('details[open]'))if(other!==card)other.open=false;
+  card.open=true;
+  markSelection(card.id);
+  card.querySelector('summary').focus();
+});
+function filterRooms(){
+  for(const section of loft.querySelectorAll('[data-room-occupants]')){
+    section.hidden=section.dataset.roomOccupants!==loft.dataset.focus;
+  }
+}
+new MutationObserver(filterRooms).observe(loft,{attributes:true,attributeFilter:['data-focus']});
+function replaceContent(current,next){
+  if(!current || !next || current.innerHTML===next.innerHTML)return;
+  const focused=current.contains(document.activeElement)?document.activeElement.closest('a')?.href:null;
+  current.replaceChildren(...next.cloneNode(true).childNodes);
+  if(focused)Array.from(current.querySelectorAll('a')).find(a=>a.href===focused)?.focus({preventScroll:true});
+}
+function syncDirectory(next){
+  const source=next.querySelector('.loft-profiles');
+  const old=new Map(Array.from(profiles.children,card=>[card.id,card]));
+  for(const incoming of source.children){
+    const current=old.get(incoming.id);
+    if(!current){profiles.append(incoming.cloneNode(true));continue;}
+    old.delete(incoming.id);
+    current.dataset.location=incoming.dataset.location;
+    replaceContent(current.querySelector('summary'),incoming.querySelector('summary'));
+    replaceContent(current.querySelector('.loft-profile-body'),incoming.querySelector('.loft-profile-body'));
+  }
+  for(const card of old.values()){
+    if(card.contains(document.activeElement))directory.querySelector('summary').focus({preventScroll:true});
+    card.remove();
+  }
+  if(selectedProfile && !document.getElementById(selectedProfile))markSelection(null);
+  directory.querySelector('[data-directory-total]').textContent=String(profiles.children.length);
+  showFilter();
+}
 function updateLoft(next) {
   const crowd=loft.querySelector('.loft-people'),passages=new Map();
   const previous=new Map(Array.from(crowd.children,p=>[p.dataset.member,p]));
@@ -68,22 +152,19 @@ function updateLoft(next) {
       const newStops=JSON.parse(incoming.dataset.recent).filter(r=>!known.has(r.id)&&Date.now()-r.at<8000);
       passages.set(key,newStops.sort((a,b)=>a.at-b.at));
     }
-    for(const attr of ['data-area','data-seat','data-live','data-recent','href','title','aria-label']){
+    replaceContent(person.querySelector('.pixel-label'),incoming.querySelector('.pixel-label'));
+    for(const attr of ['data-area','data-pose','data-seat','data-live','data-recent','href','title','aria-label']){
       const value=incoming.getAttribute(attr);
       if(person.getAttribute(attr)!==value)person.setAttribute(attr,value);
     }
   }
   for(const absent of previous.values())absent.remove();
-  const legend=loft.querySelector('.cursor-legend');
-  const nextLegend=next.querySelector('.cursor-legend');
-  if(legend && nextLegend && legend.innerHTML!==nextLegend.innerHTML)legend.innerHTML=nextLegend.innerHTML;
-  const directory=loft.querySelector('.codex-directory');
-  const nextDirectory=next.querySelector('.codex-directory');
-  if(directory && nextDirectory && directory.textContent!==nextDirectory.textContent){
-    const open=directory.querySelector('details')?.open;
-    directory.replaceChildren(...nextDirectory.cloneNode(true).childNodes);
-    if(open && directory.firstElementChild)directory.firstElementChild.open=true;
+  replaceContent(loft.querySelector('.loft-metrics'),next.querySelector('.loft-metrics'));
+  for(const room of loft.querySelectorAll('[data-room-occupants]')){
+    replaceContent(room,next.querySelector('[data-room-occupants="'+room.dataset.roomOccupants+'"]'));
   }
+  syncDirectory(next);
+  markSelection(selectedProfile);
   let changed=false;
   for(const count of loft.querySelectorAll('[data-count]')){
     const value=next.querySelector('[data-count="'+count.dataset.count+'"]').textContent;
@@ -105,6 +186,7 @@ if (plan?.dataset.follow === 'on') {
   let nextFull=performance.now()+6500;
 
   function updateContent(current, next) {
+    if(!current || !next)return;
     if (current.innerHTML === next.innerHTML) return;
     const focused = current.contains(document.activeElement) ? document.activeElement.closest('a')?.href : null;
     current.replaceChildren(...next.cloneNode(true).childNodes);

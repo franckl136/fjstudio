@@ -31,13 +31,45 @@ test('Loft · quatre pièces issues des baux, aucun personnage hors ligne, un se
   assert.match(render('rendu=classique'),/data-floor-art/);
 });
 
-test('Cursor place une session par projet au café et garde les PR fusionnées en historique',()=>{
+test('Les sessions Cursor restent dans le répertoire et les liens de PR sont groupés par projet et session',()=>{
   const pull={project_id:'demo',repository:'owner/demo',pr_number:9,agent_id:'bc-demo',title:'Mission',
     branch:'cursor/demo',state:'draft' as const,observed_at:new Date()};
   const cursorSessions=[pull,{...pull,pr_number:10},{...pull,agent_id:'bc-old',state:'merged' as const}];
   const html=officeScene({agents:[],projects:[],cursorSessions},()=>'',new URLSearchParams());
-  assert.equal(html.split('data-member="cursor/demo/bc-demo"').length-1,1);
+  assert.doesNotMatch(html,/data-member="cursor/);
+  assert.match(html,/data-count="coffee">0</);
+  assert.match(html,/data-metric="historical">1</);
+  assert.match(html,/data-metric="unknown">1</);
+  assert.equal(html.split('data-provider="Cursor"').length-1,2);
+  assert.match(html,/pull\/10/);
+});
+
+test('Le bureau accueille les sessions Codex avec signal récent, les tours terminés et inconnus restent traçables',()=>{
+  const codex=[
+    {id:'one',project:'demo',name:'Zelf',state:'working' as const},
+    {id:'two',project:'demo',name:'Zelf',state:'finished' as const},
+    {id:'three',project:'demo',name:'<Agent>',state:'recent' as const},
+  ];
+  const html=officeScene({agents:[],projects:[]},()=>'',new URLSearchParams(),codex);
+  assert.equal((html.match(/data-member="codex\//g)??[]).length,1);
+  assert.match(html,/data-metric="connected">0</);
+  assert.match(html,/data-metric="busy">0</);
+  assert.match(html,/data-metric="paused">Non renseigné</);
+  assert.match(html,/data-count="desks">1</);
+  assert.match(html,/&lt;Agent&gt;/);
+});
+
+test('Un bail encore valide sur un contact expiré reste consultable hors scène',()=>{
+  const lost={...person('lost','working','structure'),contactFresh:false};
+  const live={...person('ready','available'),contactFresh:true};
+  const html=officeScene({agents:[lost,live],projects:[]},d=>'/office?station='+d.id+'#poste',new URLSearchParams('salle=cafe'));
+  assert.match(html,/data-metric="connected">1</);
+  assert.match(html,/data-metric="busy">1</);
+  assert.match(html,/data-metric="offline">1</);
   assert.match(html,/data-count="coffee">1</);
-  assert.match(html,/data-count="desks">0</);
-  assert.doesNotMatch(html,/bc-old/);
+  assert.doesNotMatch(html,/data-member="demo\/lost/);
+  assert.match(html,/Bail en cours · contact expiré/);
+  assert.match(html,/data-ambient-count>0</);
+  assert.match(html,/href="\/projects\/demo\/control\/mission"/);
+  assert.match(html,/href="\/office\?station=lost#poste"/);
 });
